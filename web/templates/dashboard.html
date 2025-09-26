@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Incident Management System - Dashboard</title>
+    <link href="/static/css/style.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <h1>Incident Management System</h1>
+            </div>
+            <ul class="nav-menu">
+                <li class="nav-item">
+                    <a href="/" class="nav-link active">Dashboard</a>
+                </li>
+                <li class="nav-item">
+                    <a href="/incidents" class="nav-link">Incidents</a>
+                </li>
+                <li class="nav-item">
+                    <a href="/alerts" class="nav-link">Alerts</a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="dashboard-header">
+            <h2>Dashboard</h2>
+            <div class="refresh-btn">
+                <button onclick="refreshDashboard()" class="btn btn-primary">Refresh</button>
+            </div>
+        </div>
+
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-title">Total Incidents</div>
+                <div class="metric-value" id="total-incidents">-</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-title">Open Incidents</div>
+                <div class="metric-value critical" id="open-incidents">-</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-title">MTTA</div>
+                <div class="metric-value" id="mtta">-</div>
+                <div class="metric-subtitle">Mean Time To Acknowledge</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-title">MTTR</div>
+                <div class="metric-value" id="mttr">-</div>
+                <div class="metric-subtitle">Mean Time To Resolve</div>
+            </div>
+        </div>
+
+        <div class="charts-grid">
+            <div class="chart-container">
+                <h3>Incidents by Status</h3>
+                <canvas id="status-chart"></canvas>
+            </div>
+            <div class="chart-container">
+                <h3>Incidents by Severity</h3>
+                <canvas id="severity-chart"></canvas>
+            </div>
+        </div>
+
+        <div class="recent-incidents">
+            <h3>Recent Incidents</h3>
+            <div class="incidents-table" id="recent-incidents-table">
+                <div class="loading">Loading incidents...</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/dashboard.js"></script>
+</body>
+</html>
