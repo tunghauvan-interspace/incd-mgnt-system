@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Incident Management System - Alerts</title>
+    <link href="/static/css/style.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <h1>Incident Management System</h1>
+            </div>
+            <ul class="nav-menu">
+                <li class="nav-item">
+                    <a href="/" class="nav-link">Dashboard</a>
+                </li>
+                <li class="nav-item">
+                    <a href="/incidents" class="nav-link">Incidents</a>
+                </li>
+                <li class="nav-item">
+                    <a href="/alerts" class="nav-link active">Alerts</a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="page-header">
+            <h2>Alerts</h2>
+            <div class="filter-controls">
+                <select id="status-filter" onchange="filterAlerts()">
+                    <option value="">All Statuses</option>
+                    <option value="firing">Firing</option>
+                    <option value="resolved">Resolved</option>
+                </select>
+                <button onclick="refreshAlerts()" class="btn btn-primary">Refresh</button>
+            </div>
+        </div>
+
+        <div class="alerts-table-container">
+            <table class="alerts-table" id="alerts-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Alert Name</th>
+                        <th>Status</th>
+                        <th>Instance</th>
+                        <th>Started</th>
+                        <th>Incident</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="alerts-table-body">
+                    <tr>
+                        <td colspan="7" class="loading">Loading alerts...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Alert Details Modal -->
+    <div id="alert-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <div id="alert-details"></div>
+        </div>
+    </div>
+
+    <script src="/static/js/alerts.js"></script>
+</body>
+</html>
