@@ -1,36 +1,30 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { incidentAPI } from '@/services/api'
 import { formatDate, calculateDuration } from '@/utils/format'
 import Modal from '@/components/Modal.vue'
+import Button from '@/components/Button.vue'
+import StatusBadge from '@/components/StatusBadge.vue'
+import SeverityBadge from '@/components/SeverityBadge.vue'
+import DataTable from '@/components/DataTable.vue'
+import { useIncidents } from '@/composables/useIncidents'
 import type { Incident } from '@/types/api'
+import type { TableColumn } from '@/types/components'
 
-const incidents = ref<Incident[]>([])
-const loading = ref(true)
-const error = ref<string | null>(null)
 const selectedIncident = ref<Incident | null>(null)
 const showModal = ref(false)
 
-const loadIncidents = async () => {
-  try {
-    loading.value = true
-    error.value = null
-    incidents.value = await incidentAPI.getIncidents()
-    // Sort by creation date (newest first)
-    incidents.value.sort(
-      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    )
-  } catch (err) {
-    error.value = 'Error loading incidents'
-    console.error('Error loading incidents:', err)
-  } finally {
-    loading.value = false
-  }
-}
+const { incidents, loading, error, loadIncidents, acknowledgeIncident, resolveIncident } = useIncidents()
 
-const refreshIncidents = () => {
-  loadIncidents()
-}
+// Table configuration
+const columns: TableColumn<Incident>[] = [
+  { key: 'id', label: 'ID', sortable: true, width: '120px' },
+  { key: 'title', label: 'Title', sortable: true },
+  { key: 'severity', label: 'Severity', sortable: true, width: '120px', align: 'center' },
+  { key: 'status', label: 'Status', sortable: true, width: '120px', align: 'center' },
+  { key: 'created_at', label: 'Created', sortable: true, width: '180px' },
+  { key: 'duration', label: 'Duration', width: '120px' },
+  { key: 'actions', label: 'Actions', width: '200px', align: 'center' }
+]
 
 const showIncidentDetails = (incident: Incident) => {
   selectedIncident.value = incident
@@ -42,20 +36,18 @@ const closeModal = () => {
   selectedIncident.value = null
 }
 
-const acknowledgeIncident = async (incidentId: string) => {
+const handleAcknowledge = async (incidentId: string) => {
   try {
-    await incidentAPI.acknowledgeIncident(incidentId, { assignee_id: 'current_user' })
-    await loadIncidents() // Refresh the list
+    await acknowledgeIncident(incidentId, 'current_user')
   } catch (err) {
     console.error('Error acknowledging incident:', err)
     alert('Failed to acknowledge incident')
   }
 }
 
-const resolveIncident = async (incidentId: string) => {
+const handleResolve = async (incidentId: string) => {
   try {
-    await incidentAPI.resolveIncident(incidentId)
-    await loadIncidents() // Refresh the list
+    await resolveIncident(incidentId)
     if (selectedIncident.value?.id === incidentId) {
       closeModal() // Close modal if this incident was being viewed
     }
@@ -63,6 +55,10 @@ const resolveIncident = async (incidentId: string) => {
     console.error('Error resolving incident:', err)
     alert('Failed to resolve incident')
   }
+}
+
+const handleRowClick = (incident: Incident) => {
+  showIncidentDetails(incident)
 }
 
 onMounted(() => {
@@ -75,9 +71,13 @@ onMounted(() => {
     <div class="page-header">
       <h2>Incidents</h2>
       <div class="actions">
-        <button @click="refreshIncidents" class="btn btn-primary" :disabled="loading">
+        <Button 
+          @click="loadIncidents" 
+          :loading="loading"
+          variant="primary"
+        >
           {{ loading ? 'Loading...' : 'Refresh' }}
-        </button>
+        </Button>
       </div>
     </div>
 
@@ -87,64 +87,68 @@ onMounted(() => {
 
     <div class="incidents-container">
       <div class="card">
-        <div v-if="loading" class="loading">Loading incidents...</div>
-
-        <table v-else-if="incidents.length > 0" class="table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Title</th>
-              <th>Severity</th>
-              <th>Status</th>
-              <th>Created</th>
-              <th>Duration</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="incident in incidents" :key="incident.id">
-              <td>{{ incident.id.substring(0, 8) }}</td>
-              <td>{{ incident.title }}</td>
-              <td>
-                <span :class="`severity-badge severity-${incident.severity.toLowerCase()}`">
-                  {{ incident.severity }}
-                </span>
-              </td>
-              <td>
-                <span
-                  :class="`status-badge status-${incident.status.toLowerCase().replace(' ', '-')}`"
-                >
-                  {{ incident.status }}
-                </span>
-              </td>
-              <td>{{ formatDate(incident.created_at) }}</td>
-              <td>{{ calculateDuration(incident.created_at, incident.resolved_at) }}</td>
-              <td>
-                <div class="actions-group">
-                  <button class="btn btn-primary btn-sm" @click="showIncidentDetails(incident)">
-                    Details
-                  </button>
-                  <button
-                    v-if="incident.status === 'open'"
-                    class="btn btn-warning btn-sm"
-                    @click="acknowledgeIncident(incident.id)"
-                  >
-                    Acknowledge
-                  </button>
-                  <button
-                    v-if="incident.status !== 'resolved'"
-                    class="btn btn-success btn-sm"
-                    @click="resolveIncident(incident.id)"
-                  >
-                    Resolve
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
-        <div v-else class="no-data">No incidents found</div>
+        <DataTable
+          :columns="columns"
+          :data="incidents"
+          :loading="loading"
+          empty-message="No incidents found"
+          hoverable
+          @row-click="handleRowClick"
+        >
+          <!-- Custom ID column -->
+          <template #cell-id="{ value }">
+            <code class="incident-id">{{ value.substring(0, 8) }}</code>
+          </template>
+          
+          <!-- Custom Severity column -->
+          <template #cell-severity="{ value }">
+            <SeverityBadge :severity="value" size="sm" />
+          </template>
+          
+          <!-- Custom Status column -->
+          <template #cell-status="{ value }">
+            <StatusBadge :status="value" size="sm" />
+          </template>
+          
+          <!-- Custom Created column -->
+          <template #cell-created_at="{ value }">
+            {{ formatDate(value) }}
+          </template>
+          
+          <!-- Custom Duration column -->
+          <template #cell-duration="{ row }">
+            {{ calculateDuration(row.created_at, row.resolved_at) }}
+          </template>
+          
+          <!-- Custom Actions column -->
+          <template #cell-actions="{ row }">
+            <div class="actions-group">
+              <Button 
+                size="sm" 
+                variant="primary"
+                @click.stop="showIncidentDetails(row)"
+              >
+                Details
+              </Button>
+              <Button
+                v-if="row.status === 'open'"
+                size="sm"
+                variant="warning"
+                @click.stop="handleAcknowledge(row.id)"
+              >
+                Acknowledge
+              </Button>
+              <Button
+                v-if="row.status !== 'resolved'"
+                size="sm"
+                variant="success"
+                @click.stop="handleResolve(row.id)"
+              >
+                Resolve
+              </Button>
+            </div>
+          </template>
+        </DataTable>
       </div>
     </div>
 
@@ -155,8 +159,14 @@ onMounted(() => {
       @close="closeModal"
     >
       <div v-if="selectedIncident" class="incident-details">
-        <div class="detail-row"><strong>ID:</strong> {{ selectedIncident.id }}</div>
-        <div class="detail-row"><strong>Title:</strong> {{ selectedIncident.title }}</div>
+        <div class="detail-row">
+          <strong>ID:</strong> 
+          <code class="incident-id">{{ selectedIncident.id }}</code>
+        </div>
+        <div class="detail-row">
+          <strong>Title:</strong> 
+          {{ selectedIncident.title }}
+        </div>
         <div class="detail-row">
           <strong>Description:</strong>
           <p class="description">
@@ -165,29 +175,34 @@ onMounted(() => {
         </div>
         <div class="detail-row">
           <strong>Severity:</strong>
-          <span :class="`severity-badge severity-${selectedIncident.severity.toLowerCase()}`">
-            {{ selectedIncident.severity }}
-          </span>
+          <SeverityBadge 
+            :severity="selectedIncident.severity" 
+            size="md" 
+            show-icon 
+          />
         </div>
         <div class="detail-row">
           <strong>Status:</strong>
-          <span
-            :class="`status-badge status-${selectedIncident.status.toLowerCase().replace(' ', '-')}`"
-          >
-            {{ selectedIncident.status }}
-          </span>
+          <StatusBadge 
+            :status="selectedIncident.status" 
+            size="md" 
+          />
         </div>
         <div class="detail-row">
-          <strong>Created:</strong> {{ formatDate(selectedIncident.created_at) }}
+          <strong>Created:</strong> 
+          {{ formatDate(selectedIncident.created_at) }}
         </div>
         <div class="detail-row" v-if="selectedIncident.acknowledged_at">
-          <strong>Acknowledged:</strong> {{ formatDate(selectedIncident.acknowledged_at) }}
+          <strong>Acknowledged:</strong> 
+          {{ formatDate(selectedIncident.acknowledged_at) }}
         </div>
         <div class="detail-row" v-if="selectedIncident.resolved_at">
-          <strong>Resolved:</strong> {{ formatDate(selectedIncident.resolved_at) }}
+          <strong>Resolved:</strong> 
+          {{ formatDate(selectedIncident.resolved_at) }}
         </div>
         <div class="detail-row" v-if="selectedIncident.assignee_id">
-          <strong>Assignee:</strong> {{ selectedIncident.assignee_id }}
+          <strong>Assignee:</strong> 
+          {{ selectedIncident.assignee_id }}
         </div>
         <div
           class="detail-row"
@@ -207,21 +222,23 @@ onMounted(() => {
       </div>
 
       <template #footer>
-        <button
+        <Button
           v-if="selectedIncident?.status === 'open'"
-          class="btn btn-warning"
-          @click="selectedIncident && acknowledgeIncident(selectedIncident.id)"
+          variant="warning"
+          @click="selectedIncident && handleAcknowledge(selectedIncident.id)"
         >
           Acknowledge
-        </button>
-        <button
+        </Button>
+        <Button
           v-if="selectedIncident?.status !== 'resolved'"
-          class="btn btn-success"
-          @click="selectedIncident && resolveIncident(selectedIncident.id)"
+          variant="success"
+          @click="selectedIncident && handleResolve(selectedIncident.id)"
         >
           Resolve
-        </button>
-        <button class="btn btn-secondary" @click="closeModal">Close</button>
+        </Button>
+        <Button variant="secondary" @click="closeModal">
+          Close
+        </Button>
       </template>
     </Modal>
   </div>
