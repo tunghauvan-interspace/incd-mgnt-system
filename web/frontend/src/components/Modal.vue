@@ -43,9 +43,12 @@ const updateBodyScroll = (show: boolean) => {
 // Watch for show prop changes
 import { watch, onUnmounted } from 'vue'
 
-watch(() => props.show, (newValue) => {
-  updateBodyScroll(newValue)
-})
+watch(
+  () => props.show,
+  (newValue) => {
+    updateBodyScroll(newValue)
+  }
+)
 
 onUnmounted(() => {
   updateBodyScroll(false)
@@ -55,27 +58,19 @@ onUnmounted(() => {
 <template>
   <Teleport to="body">
     <Transition name="modal">
-      <div
-        v-if="show"
-        class="modal-overlay"
-        @click="handleOutsideClick"
-      >
+      <div v-if="show" class="modal-overlay" @click="handleOutsideClick">
         <div class="modal">
           <div class="modal-header">
             <h3 v-if="title">{{ title }}</h3>
-            <button
-              class="modal-close"
-              @click="closeModal"
-              aria-label="Close modal"
-            >
+            <button class="modal-close" @click="closeModal" aria-label="Close modal">
               &times;
             </button>
           </div>
-          
+
           <div class="modal-body">
             <slot></slot>
           </div>
-          
+
           <div class="modal-footer" v-if="$slots.footer">
             <slot name="footer"></slot>
           </div>
@@ -185,7 +180,7 @@ onUnmounted(() => {
     max-height: 90vh;
     margin: 1rem;
   }
-  
+
   .modal-header,
   .modal-body,
   .modal-footer {

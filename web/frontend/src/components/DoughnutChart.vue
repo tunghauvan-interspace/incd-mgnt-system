@@ -23,19 +23,21 @@ const props = defineProps<Props>()
 
 const chartData = ref({
   labels: [] as string[],
-  datasets: [{
-    data: [] as number[],
-    backgroundColor: [
-      '#e74c3c', // red for open/high
-      '#f39c12', // orange for acknowledged/medium  
-      '#27ae60', // green for resolved/low
-      '#3498db', // blue for info/other
-      '#9b59b6', // purple for additional categories
-      '#1abc9c'  // teal for additional categories
-    ],
-    borderWidth: 1,
-    borderColor: '#fff'
-  }]
+  datasets: [
+    {
+      data: [] as number[],
+      backgroundColor: [
+        '#e74c3c', // red for open/high
+        '#f39c12', // orange for acknowledged/medium
+        '#27ae60', // green for resolved/low
+        '#3498db', // blue for info/other
+        '#9b59b6', // purple for additional categories
+        '#1abc9c' // teal for additional categories
+      ],
+      borderWidth: 1,
+      borderColor: '#fff'
+    }
+  ]
 })
 
 const chartOptions = ref({
@@ -58,7 +60,7 @@ const chartOptions = ref({
     },
     tooltip: {
       callbacks: {
-        label: function(context: any) {
+        label: function (context: any) {
           const label = context.label || ''
           const value = context.parsed || 0
           const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0)
@@ -72,20 +74,26 @@ const chartOptions = ref({
 })
 
 // Update chart data when props change
-watch(() => props.data, (newData) => {
-  updateChartData(newData)
-}, { immediate: true })
+watch(
+  () => props.data,
+  (newData) => {
+    updateChartData(newData)
+  },
+  { immediate: true }
+)
 
 function updateChartData(data: Record<string, number>) {
   const labels = Object.keys(data)
   const values = Object.values(data)
-  
+
   chartData.value = {
     labels,
-    datasets: [{
-      ...chartData.value.datasets[0],
-      data: values
-    }]
+    datasets: [
+      {
+        ...chartData.value.datasets[0],
+        data: values
+      }
+    ]
   }
 }
 
@@ -96,11 +104,7 @@ onMounted(() => {
 
 <template>
   <div class="chart-container">
-    <Doughnut
-      :data="chartData"
-      :options="chartOptions"
-      class="chart"
-    />
+    <Doughnut :data="chartData" :options="chartOptions" class="chart" />
   </div>
 </template>
 
@@ -119,7 +123,7 @@ onMounted(() => {
   .chart-container {
     height: 250px;
   }
-  
+
   .chart {
     max-height: 250px;
   }

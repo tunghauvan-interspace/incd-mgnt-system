@@ -17,7 +17,9 @@ const loadIncidents = async () => {
     error.value = null
     incidents.value = await incidentAPI.getIncidents()
     // Sort by creation date (newest first)
-    incidents.value.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    incidents.value.sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    )
   } catch (err) {
     error.value = 'Error loading incidents'
     console.error('Error loading incidents:', err)
@@ -85,10 +87,8 @@ onMounted(() => {
 
     <div class="incidents-container">
       <div class="card">
-        <div v-if="loading" class="loading">
-          Loading incidents...
-        </div>
-        
+        <div v-if="loading" class="loading">Loading incidents...</div>
+
         <table v-else-if="incidents.length > 0" class="table">
           <thead>
             <tr>
@@ -111,7 +111,9 @@ onMounted(() => {
                 </span>
               </td>
               <td>
-                <span :class="`status-badge status-${incident.status.toLowerCase().replace(' ', '-')}`">
+                <span
+                  :class="`status-badge status-${incident.status.toLowerCase().replace(' ', '-')}`"
+                >
                   {{ incident.status }}
                 </span>
               </td>
@@ -122,14 +124,14 @@ onMounted(() => {
                   <button class="btn btn-primary btn-sm" @click="showIncidentDetails(incident)">
                     Details
                   </button>
-                  <button 
+                  <button
                     v-if="incident.status === 'open'"
                     class="btn btn-warning btn-sm"
                     @click="acknowledgeIncident(incident.id)"
                   >
                     Acknowledge
                   </button>
-                  <button 
+                  <button
                     v-if="incident.status !== 'resolved'"
                     class="btn btn-success btn-sm"
                     @click="resolveIncident(incident.id)"
@@ -141,25 +143,25 @@ onMounted(() => {
             </tr>
           </tbody>
         </table>
-        
-        <div v-else class="no-data">
-          No incidents found
-        </div>
+
+        <div v-else class="no-data">No incidents found</div>
       </div>
     </div>
 
     <!-- Incident Details Modal -->
-    <Modal :show="showModal" :title="`Incident Details - ${selectedIncident?.id.substring(0, 8) || ''}`" @close="closeModal">
+    <Modal
+      :show="showModal"
+      :title="`Incident Details - ${selectedIncident?.id.substring(0, 8) || ''}`"
+      @close="closeModal"
+    >
       <div v-if="selectedIncident" class="incident-details">
+        <div class="detail-row"><strong>ID:</strong> {{ selectedIncident.id }}</div>
+        <div class="detail-row"><strong>Title:</strong> {{ selectedIncident.title }}</div>
         <div class="detail-row">
-          <strong>ID:</strong> {{ selectedIncident.id }}
-        </div>
-        <div class="detail-row">
-          <strong>Title:</strong> {{ selectedIncident.title }}
-        </div>
-        <div class="detail-row">
-          <strong>Description:</strong> 
-          <p class="description">{{ selectedIncident.description || 'No description available' }}</p>
+          <strong>Description:</strong>
+          <p class="description">
+            {{ selectedIncident.description || 'No description available' }}
+          </p>
         </div>
         <div class="detail-row">
           <strong>Severity:</strong>
@@ -169,7 +171,9 @@ onMounted(() => {
         </div>
         <div class="detail-row">
           <strong>Status:</strong>
-          <span :class="`status-badge status-${selectedIncident.status.toLowerCase().replace(' ', '-')}`">
+          <span
+            :class="`status-badge status-${selectedIncident.status.toLowerCase().replace(' ', '-')}`"
+          >
             {{ selectedIncident.status }}
           </span>
         </div>
@@ -185,12 +189,15 @@ onMounted(() => {
         <div class="detail-row" v-if="selectedIncident.assignee_id">
           <strong>Assignee:</strong> {{ selectedIncident.assignee_id }}
         </div>
-        <div class="detail-row" v-if="selectedIncident.labels && Object.keys(selectedIncident.labels).length > 0">
+        <div
+          class="detail-row"
+          v-if="selectedIncident.labels && Object.keys(selectedIncident.labels).length > 0"
+        >
           <strong>Labels:</strong>
           <div class="labels-container">
-            <span 
-              v-for="[key, value] in Object.entries(selectedIncident.labels)" 
-              :key="key" 
+            <span
+              v-for="[key, value] in Object.entries(selectedIncident.labels)"
+              :key="key"
               class="label-tag"
             >
               <strong>{{ key }}:</strong> {{ value }}
@@ -200,23 +207,21 @@ onMounted(() => {
       </div>
 
       <template #footer>
-        <button 
+        <button
           v-if="selectedIncident?.status === 'open'"
           class="btn btn-warning"
           @click="selectedIncident && acknowledgeIncident(selectedIncident.id)"
         >
           Acknowledge
         </button>
-        <button 
+        <button
           v-if="selectedIncident?.status !== 'resolved'"
           class="btn btn-success"
           @click="selectedIncident && resolveIncident(selectedIncident.id)"
         >
           Resolve
         </button>
-        <button class="btn btn-secondary" @click="closeModal">
-          Close
-        </button>
+        <button class="btn btn-secondary" @click="closeModal">Close</button>
       </template>
     </Modal>
   </div>
@@ -313,29 +318,29 @@ onMounted(() => {
     gap: 1rem;
     align-items: stretch;
   }
-  
+
   .table {
     font-size: 0.85rem;
   }
-  
+
   .table th,
   .table td {
     padding: 8px;
   }
-  
+
   .actions-group {
     flex-direction: column;
   }
-  
+
   .btn-sm {
     padding: 6px 10px;
   }
-  
+
   .detail-row {
     flex-direction: column;
     gap: 0.25rem;
   }
-  
+
   .detail-row strong {
     min-width: auto;
   }
