@@ -1,3 +1,6 @@
+/* Import design tokens */
+@import './design-tokens.css';
+
 /* Reset and Base Styles */
 * {
   margin: 0;
@@ -6,20 +9,20 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  line-height: 1.6;
-  color: #333;
-  background-color: #f5f5f5;
+  font-family: var(--font-family-base);
+  line-height: var(--line-height-base);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-secondary);
 }
 
 /* Global Utility Classes */
 .container {
-  max-width: 1200px;
+  max-width: var(--container-max-width);
   margin: 0 auto;
-  padding: 20px;
+  padding: var(--spacing-lg);
 }
 
-/* Button Styles */
+/* Legacy button styles - deprecated, use Button component instead */
 .btn {
   padding: 8px 16px;
   border: none;
@@ -77,26 +80,50 @@ body {
   background-color: #5a6268;
 }
 
-/* Status and severity badges */
+/* Legacy status and severity badges - use StatusBadge and SeverityBadge components instead */
 .status-badge,
 .severity-badge {
   display: inline-block;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: bold;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-base);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
 }
 
-.status-open { background-color: #e74c3c; color: white; }
-.status-acknowledged { background-color: #f39c12; color: white; }
-.status-resolved { background-color: #27ae60; color: white; }
+.status-open { 
+  background-color: var(--color-status-open-bg); 
+  color: var(--color-status-open); 
+}
+.status-acknowledged { 
+  background-color: var(--color-status-acknowledged-bg); 
+  color: var(--color-status-acknowledged); 
+}
+.status-resolved { 
+  background-color: var(--color-status-resolved-bg); 
+  color: var(--color-status-resolved); 
+}
 
-.severity-critical { background-color: #8B0000; color: white; }
-.severity-high { background-color: #e74c3c; color: white; }
-.severity-medium { background-color: #f39c12; color: white; }
-.severity-low { background-color: #3498db; color: white; }
-.severity-info { background-color: #95a5a6; color: white; }
+.severity-critical { 
+  background-color: var(--color-severity-critical); 
+  color: var(--color-text-white); 
+}
+.severity-high { 
+  background-color: var(--color-severity-high); 
+  color: var(--color-text-white); 
+}
+.severity-medium { 
+  background-color: var(--color-severity-medium); 
+  color: var(--color-text-white); 
+}
+.severity-low { 
+  background-color: var(--color-severity-low); 
+  color: var(--color-text-white); 
+}
+.severity-info { 
+  background-color: var(--color-severity-info); 
+  color: var(--color-text-white); 
+}
 
 /* Loading states */
 .loading {

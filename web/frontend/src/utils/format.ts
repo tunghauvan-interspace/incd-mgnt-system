@@ -11,7 +11,7 @@ export function formatDuration(nanoseconds: number): string {
   }
 
   const seconds = nanoseconds / 1000000000
-  
+
   if (seconds < 60) {
     return `${Math.round(seconds)}s`
   } else if (seconds < 3600) {

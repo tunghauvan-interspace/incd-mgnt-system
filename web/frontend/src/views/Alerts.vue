@@ -62,10 +62,8 @@ onMounted(() => {
 
     <div class="alerts-container">
       <div class="card">
-        <div v-if="loading" class="loading">
-          Loading alerts...
-        </div>
-        
+        <div v-if="loading" class="loading">Loading alerts...</div>
+
         <table v-else-if="alerts.length > 0" class="table">
           <thead>
             <tr>
@@ -90,29 +88,25 @@ onMounted(() => {
                 <span v-else>-</span>
               </td>
               <td>
-                <button class="btn btn-primary" @click="showAlertDetails(alert)">
-                  Details
-                </button>
+                <button class="btn btn-primary" @click="showAlertDetails(alert)">Details</button>
               </td>
             </tr>
           </tbody>
         </table>
-        
-        <div v-else class="no-data">
-          No alerts found
-        </div>
+
+        <div v-else class="no-data">No alerts found</div>
       </div>
     </div>
 
     <!-- Alert Details Modal -->
-    <Modal :show="showModal" :title="`Alert Details - ${selectedAlert?.alert_name || ''}`" @close="closeModal">
+    <Modal
+      :show="showModal"
+      :title="`Alert Details - ${selectedAlert?.alert_name || ''}`"
+      @close="closeModal"
+    >
       <div v-if="selectedAlert" class="alert-details">
-        <div class="detail-row">
-          <strong>ID:</strong> {{ selectedAlert.id }}
-        </div>
-        <div class="detail-row">
-          <strong>Alert Name:</strong> {{ selectedAlert.alert_name }}
-        </div>
+        <div class="detail-row"><strong>ID:</strong> {{ selectedAlert.id }}</div>
+        <div class="detail-row"><strong>Alert Name:</strong> {{ selectedAlert.alert_name }}</div>
         <div class="detail-row">
           <strong>Status:</strong>
           <span :class="`status-badge status-${selectedAlert.status.toLowerCase()}`">
@@ -134,24 +128,30 @@ onMounted(() => {
         <div class="detail-row" v-if="selectedAlert.incident_id">
           <strong>Incident ID:</strong> {{ selectedAlert.incident_id }}
         </div>
-        <div class="detail-row" v-if="selectedAlert.labels && Object.keys(selectedAlert.labels).length > 0">
+        <div
+          class="detail-row"
+          v-if="selectedAlert.labels && Object.keys(selectedAlert.labels).length > 0"
+        >
           <strong>Labels:</strong>
           <div class="labels-container">
-            <span 
-              v-for="[key, value] in Object.entries(selectedAlert.labels)" 
-              :key="key" 
+            <span
+              v-for="[key, value] in Object.entries(selectedAlert.labels)"
+              :key="key"
               class="label-tag"
             >
               <strong>{{ key }}:</strong> {{ value }}
             </span>
           </div>
         </div>
-        <div class="detail-row" v-if="selectedAlert.annotations && Object.keys(selectedAlert.annotations).length > 0">
+        <div
+          class="detail-row"
+          v-if="selectedAlert.annotations && Object.keys(selectedAlert.annotations).length > 0"
+        >
           <strong>Annotations:</strong>
           <div class="annotations-container">
-            <div 
-              v-for="[key, value] in Object.entries(selectedAlert.annotations)" 
-              :key="key" 
+            <div
+              v-for="[key, value] in Object.entries(selectedAlert.annotations)"
+              :key="key"
               class="annotation-item"
             >
               <strong>{{ key }}:</strong>
@@ -162,9 +162,7 @@ onMounted(() => {
       </div>
 
       <template #footer>
-        <button class="btn btn-secondary" @click="closeModal">
-          Close
-        </button>
+        <button class="btn btn-secondary" @click="closeModal">Close</button>
       </template>
     </Modal>
   </div>
@@ -273,21 +271,21 @@ onMounted(() => {
     gap: 1rem;
     align-items: stretch;
   }
-  
+
   .table {
     font-size: 0.85rem;
   }
-  
+
   .table th,
   .table td {
     padding: 8px;
   }
-  
+
   .detail-row {
     flex-direction: column;
     gap: 0.25rem;
   }
-  
+
   .detail-row strong {
     min-width: auto;
   }

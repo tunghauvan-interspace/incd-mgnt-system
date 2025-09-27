@@ -34,32 +34,29 @@ api.interceptors.response.use(
 
 export const incidentAPI = {
   // Get all incidents
-  getIncidents: (): Promise<Incident[]> => 
-    api.get<Incident[]>('/incidents').then(res => res.data),
-  
+  getIncidents: (): Promise<Incident[]> =>
+    api.get<Incident[]>('/incidents').then((res) => res.data),
+
   // Get incident by ID
-  getIncident: (id: string): Promise<Incident> => 
-    api.get<Incident>(`/incidents/${id}`).then(res => res.data),
-  
+  getIncident: (id: string): Promise<Incident> =>
+    api.get<Incident>(`/incidents/${id}`).then((res) => res.data),
+
   // Acknowledge incident
-  acknowledgeIncident: (id: string, data: AcknowledgeIncidentRequest): Promise<void> => 
+  acknowledgeIncident: (id: string, data: AcknowledgeIncidentRequest): Promise<void> =>
     api.put(`/incidents/${id}/acknowledge`, data).then(() => {}),
-  
+
   // Resolve incident
-  resolveIncident: (id: string): Promise<void> => 
-    api.put(`/incidents/${id}/resolve`).then(() => {})
+  resolveIncident: (id: string): Promise<void> => api.put(`/incidents/${id}/resolve`).then(() => {})
 }
 
 export const alertAPI = {
   // Get all alerts
-  getAlerts: (): Promise<Alert[]> => 
-    api.get<Alert[]>('/alerts').then(res => res.data)
+  getAlerts: (): Promise<Alert[]> => api.get<Alert[]>('/alerts').then((res) => res.data)
 }
 
 export const metricsAPI = {
   // Get metrics
-  getMetrics: (): Promise<Metrics> => 
-    api.get<Metrics>('/metrics').then(res => res.data)
+  getMetrics: (): Promise<Metrics> => api.get<Metrics>('/metrics').then((res) => res.data)
 }
 
 export default api

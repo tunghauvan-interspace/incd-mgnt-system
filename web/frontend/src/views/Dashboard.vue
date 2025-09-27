@@ -46,27 +46,25 @@ onMounted(() => {
       {{ error }}
     </div>
 
-    <div v-else-if="loading" class="loading">
-      Loading dashboard...
-    </div>
+    <div v-else-if="loading" class="loading">Loading dashboard...</div>
 
     <div v-else-if="metrics" class="metrics-grid">
       <div class="metric-card">
         <div class="metric-title">Total Incidents</div>
         <div class="metric-value">{{ metrics.total_incidents || 0 }}</div>
       </div>
-      
+
       <div class="metric-card">
         <div class="metric-title">Open Incidents</div>
         <div class="metric-value critical">{{ metrics.open_incidents || 0 }}</div>
       </div>
-      
+
       <div class="metric-card">
         <div class="metric-title">MTTA</div>
         <div class="metric-value">{{ formatDuration(metrics.mtta) }}</div>
         <div class="metric-subtitle">Mean Time To Acknowledge</div>
       </div>
-      
+
       <div class="metric-card">
         <div class="metric-title">MTTR</div>
         <div class="metric-value">{{ formatDuration(metrics.mttr) }}</div>
@@ -78,14 +76,11 @@ onMounted(() => {
     <div v-if="metrics && !loading" class="charts-section">
       <div class="charts-grid">
         <div class="card">
-          <DoughnutChart 
-            :data="metrics.incidents_by_status || {}"
-            title="Incidents by Status"
-          />
+          <DoughnutChart :data="metrics.incidents_by_status || {}" title="Incidents by Status" />
         </div>
-        
+
         <div class="card">
-          <DoughnutChart 
+          <DoughnutChart
             :data="metrics.incidents_by_severity || {}"
             title="Incidents by Severity"
           />
@@ -123,7 +118,7 @@ onMounted(() => {
   background: white;
   padding: 1.5rem;
   border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   text-align: center;
 }
 
@@ -175,16 +170,16 @@ onMounted(() => {
     gap: 1rem;
     align-items: stretch;
   }
-  
+
   .metrics-grid {
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   }
-  
+
   .charts-grid {
     grid-template-columns: 1fr;
     gap: 1rem;
   }
-  
+
   .metric-value {
     font-size: 1.5rem;
   }

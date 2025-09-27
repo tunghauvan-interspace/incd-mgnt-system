@@ -7,8 +7,8 @@ export default defineConfig({
   plugins: [vue()],
   resolve: {
     alias: {
-      '@': resolve(__dirname, 'src'),
-    },
+      '@': resolve(__dirname, 'src')
+    }
   },
   build: {
     outDir: 'dist',
@@ -20,15 +20,15 @@ export default defineConfig({
         assetFileNames: (assetInfo) => {
           const info = assetInfo.name?.split('.') || []
           const ext = info[info.length - 1]
-          
+
           if (/\.(png|jpe?g|svg|gif|tiff|bmp|ico)$/i.test(assetInfo.name || '')) {
             return 'images/[name]-[hash][extname]'
           }
-          
+
           if (/\.css$/i.test(assetInfo.name || '')) {
             return 'css/[name]-[hash][extname]'
           }
-          
+
           return `${ext}/[name]-[hash][extname]`
         }
       }
@@ -39,7 +39,7 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'http://localhost:8080',
-        changeOrigin: true,
+        changeOrigin: true
       }
     }
   }
