@@ -48,7 +48,7 @@ This document outlines the prioritized tasks for developing and enhancing the In
 - [ ] Implement secure credential management (Vault integration)
 - [ ] Add configuration hot-reloading capability
 
-## Phase 1.5 - Frontend Modernization (Weeks 2.5-4)
+## Phase 0.5 - Frontend Modernization (Weeks 2.5-4)
 
 ### Web Folder Restructuring
 - [ ] Migrate from vanilla HTML/CSS/JS to Vue.js + TypeScript framework
