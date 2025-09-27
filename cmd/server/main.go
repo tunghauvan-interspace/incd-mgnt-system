@@ -1,9 +1,13 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/tunghauvan-interspace/incd-mgnt-system/internal/config"
 	"github.com/tunghauvan-interspace/incd-mgnt-system/internal/handlers"
@@ -12,11 +16,32 @@ import (
 )
 
 func main() {
-	cfg := config.LoadConfig()
+	// Load and validate configuration
+	cfg, err := config.LoadAndValidateConfig()
+	if err != nil {
+		log.Fatalf("Configuration validation failed: %v", err)
+	}
+
+	log.Printf("Starting Incident Management System...")
+	log.Printf("Configuration loaded successfully")
+	
+	if cfg.DebugMode {
+		log.Printf("DEBUG MODE: Configuration details:")
+		log.Printf("  - Port: %s", cfg.Port)
+		log.Printf("  - Log Level: %s", cfg.LogLevel)
+		log.Printf("  - Database: %s", func() string {
+			if cfg.DatabaseURL != "" {
+				return "PostgreSQL (configured)"
+			}
+			return "In-Memory"
+		}())
+		log.Printf("  - Notifications: %t", cfg.HasNotificationConfigured())
+		log.Printf("  - TLS: %t", cfg.IsTLSEnabled())
+		log.Printf("  - Metrics: %t (port %s)", cfg.MetricsEnabled, cfg.MetricsPort)
+	}
 
 	// Initialize storage - use PostgreSQL if DATABASE_URL is provided, otherwise use memory store
 	var store storage.Store
-	var err error
 	
 	if cfg.DatabaseURL != "" {
 		log.Println("Initializing PostgreSQL storage...")
@@ -33,6 +58,7 @@ func main() {
 			log.Fatal("Failed to initialize memory storage:", err)
 		}
 		log.Println("Memory storage initialized successfully")
+		log.Println("WARNING: Using in-memory storage - data will be lost on restart")
 	}
 
 	// Initialize services
@@ -47,13 +73,61 @@ func main() {
 	mux := http.NewServeMux()
 	handler.RegisterRoutes(mux)
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
+	// Create HTTP server with configured timeouts
+	server := &http.Server{
+		Addr:           ":" + cfg.Port,
+		Handler:        mux,
+		ReadTimeout:    cfg.ServerReadTimeout,
+		WriteTimeout:   cfg.ServerWriteTimeout,
+		IdleTimeout:    cfg.ServerIdleTimeout,
+		MaxHeaderBytes: 1 << 20, // 1MB
 	}
 
-	log.Printf("Starting Incident Management System on port %s", port)
-	if err := http.ListenAndServe(":"+port, mux); err != nil {
-		log.Fatal("Server failed to start:", err)
+	// Setup graceful shutdown
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	// Start server in a goroutine
+	go func() {
+		if cfg.IsTLSEnabled() {
+			log.Printf("Starting HTTPS server on port %s", cfg.Port)
+			if err := server.ListenAndServeTLS(cfg.TLSCertFile, cfg.TLSKeyFile); err != nil && err != http.ErrServerClosed {
+				log.Fatalf("HTTPS server failed to start: %v", err)
+			}
+		} else {
+			log.Printf("Starting HTTP server on port %s", cfg.Port)
+			if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				log.Fatalf("HTTP server failed to start: %v", err)
+			}
+		}
+	}()
+
+	log.Printf("Incident Management System started successfully")
+	if !cfg.HasNotificationConfigured() {
+		log.Printf("WARNING: No notification methods configured - alerts will not be sent")
 	}
+
+	// Wait for interrupt signal
+	<-ctx.Done()
+	stop()
+	log.Println("Shutting down server...")
+
+	// Create shutdown context with timeout
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Attempt graceful shutdown
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Printf("Server forced to shutdown: %v", err)
+	} else {
+		log.Println("Server shutdown gracefully")
+	}
+
+	// Close storage connections
+	if pgStore, ok := store.(*storage.PostgresStore); ok {
+		pgStore.Close()
+		log.Println("Database connections closed")
+	}
+
+	log.Println("Shutdown complete")
 }
