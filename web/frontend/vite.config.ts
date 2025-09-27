@@ -13,8 +13,21 @@ export default defineConfig({
   build: {
     outDir: '../static',
     emptyOutDir: true,
+    // Enable minification
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true
+      }
+    },
+    // Enable gzip compression reporting
+    reportCompressedSize: true,
+    // Chunk size warning limit
+    chunkSizeWarningLimit: 500,
     rollupOptions: {
       output: {
+        // Organize assets by type with content hashing
         entryFileNames: 'js/[name]-[hash].js',
         chunkFileNames: 'js/[name]-[hash].js',
         assetFileNames: (assetInfo) => {
@@ -30,6 +43,13 @@ export default defineConfig({
           }
 
           return `${ext}/[name]-[hash][extname]`
+        },
+        // Manual chunk splitting for better caching
+        manualChunks: {
+          // Vendor libraries
+          vendor: ['vue', 'vue-router', 'pinia'],
+          charts: ['chart.js', 'vue-chartjs'],
+          utils: ['axios']
         }
       }
     }
@@ -42,5 +62,9 @@ export default defineConfig({
         changeOrigin: true
       }
     }
+  },
+  // Bundle analyzer (can be enabled when needed)
+  define: {
+    __VUE_PROD_DEVTOOLS__: false,
   }
 })

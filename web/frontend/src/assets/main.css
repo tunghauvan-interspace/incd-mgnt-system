@@ -1,6 +1,9 @@
 /* Import design tokens */
 @import './design-tokens.css';
 
+/* Import responsive design system */
+@import './responsive.css';
+
 /* Reset and Base Styles */
 * {
   margin: 0;
