@@ -60,15 +60,15 @@ func TestRepositoryPattern(t *testing.T) {
 	})
 
 	t.Run("RepositoryInterfaceCompliance", func(t *testing.T) {
-		// Create a PostgresStore instance for testing interface compliance
-		// This tests that our PostgresStore can be used as a Repository
+		// Create a RepositoryAdapter instance for testing interface compliance
+		// This tests that our RepositoryAdapter properly implements Repository
 		
 		// Note: We can't actually test database operations without a real DB connection
 		// But we can test that the types and interfaces are correctly defined
 		
-		var _ IncidentRepository = &RepositoryImpl{}
-		var _ AlertRepository = &RepositoryImpl{}
-		var _ Repository = &RepositoryImpl{}
+		var _ IncidentRepository = &RepositoryAdapter{}
+		var _ AlertRepository = &RepositoryAdapter{}  
+		var _ Repository = &RepositoryAdapter{}
 	})
 }
 

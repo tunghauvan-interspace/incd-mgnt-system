@@ -1077,7 +1077,7 @@ func (tw *transactionWrapper) GetIncidentByID(ctx context.Context, id string) (*
 }
 
 func (tw *transactionWrapper) ListIncidents(ctx context.Context, filter IncidentFilter) ([]*models.Incident, error) {
-	// For read operations, use the main store implementation
+	// For read operations, use the main store implementation  
 	return tw.store.ListIncidentsWithFilter(ctx, filter)
 }
 
@@ -1262,87 +1262,87 @@ func (tw *transactionWrapper) Close() error {
 	return tw.store.Close()
 }
 
-// RepositoryImpl provides repository pattern implementation on top of PostgresStore
-type RepositoryImpl struct {
+// RepositoryAdapter adapts PostgresStore to implement Repository interface
+type RepositoryAdapter struct {
 	store *PostgresStore
 }
 
-// NewRepository creates a new repository implementation
+// NewRepository creates a repository from a PostgresStore
 func NewRepository(store *PostgresStore) Repository {
-	return &RepositoryImpl{store: store}
+	return &RepositoryAdapter{store: store}
 }
 
 // CreateIncident implements IncidentRepository.CreateIncident
-func (r *RepositoryImpl) CreateIncident(ctx context.Context, incident *models.Incident) error {
+func (r *RepositoryAdapter) CreateIncident(ctx context.Context, incident *models.Incident) error {
 	return r.store.CreateIncidentWithContext(ctx, incident)
 }
 
 // GetIncidentByID implements IncidentRepository.GetIncidentByID
-func (r *RepositoryImpl) GetIncidentByID(ctx context.Context, id string) (*models.Incident, error) {
+func (r *RepositoryAdapter) GetIncidentByID(ctx context.Context, id string) (*models.Incident, error) {
 	return r.store.GetIncidentByID(ctx, id)
 }
 
 // ListIncidents implements IncidentRepository.ListIncidents
-func (r *RepositoryImpl) ListIncidents(ctx context.Context, filter IncidentFilter) ([]*models.Incident, error) {
+func (r *RepositoryAdapter) ListIncidents(ctx context.Context, filter IncidentFilter) ([]*models.Incident, error) {
 	return r.store.ListIncidentsWithFilter(ctx, filter)
 }
 
 // UpdateIncident implements IncidentRepository.UpdateIncident
-func (r *RepositoryImpl) UpdateIncident(ctx context.Context, incident *models.Incident) error {
+func (r *RepositoryAdapter) UpdateIncident(ctx context.Context, incident *models.Incident) error {
 	return r.store.UpdateIncidentWithContext(ctx, incident)
 }
 
 // DeleteIncident implements IncidentRepository.DeleteIncident
-func (r *RepositoryImpl) DeleteIncident(ctx context.Context, id string) error {
+func (r *RepositoryAdapter) DeleteIncident(ctx context.Context, id string) error {
 	return r.store.DeleteIncidentWithContext(ctx, id)
 }
 
 // CountIncidents implements IncidentRepository.CountIncidents
-func (r *RepositoryImpl) CountIncidents(ctx context.Context, filter IncidentFilter) (int, error) {
+func (r *RepositoryAdapter) CountIncidents(ctx context.Context, filter IncidentFilter) (int, error) {
 	return r.store.CountIncidents(ctx, filter)
 }
 
 // CreateAlert implements AlertRepository.CreateAlert
-func (r *RepositoryImpl) CreateAlert(ctx context.Context, alert *models.Alert) error {
+func (r *RepositoryAdapter) CreateAlert(ctx context.Context, alert *models.Alert) error {
 	return r.store.CreateAlertWithContext(ctx, alert)
 }
 
 // GetAlertByID implements AlertRepository.GetAlertByID
-func (r *RepositoryImpl) GetAlertByID(ctx context.Context, id string) (*models.Alert, error) {
+func (r *RepositoryAdapter) GetAlertByID(ctx context.Context, id string) (*models.Alert, error) {
 	return r.store.GetAlertByID(ctx, id)
 }
 
 // ListAlerts implements AlertRepository.ListAlerts
-func (r *RepositoryImpl) ListAlerts(ctx context.Context, filter AlertFilter) ([]*models.Alert, error) {
+func (r *RepositoryAdapter) ListAlerts(ctx context.Context, filter AlertFilter) ([]*models.Alert, error) {
 	return r.store.ListAlertsWithFilter(ctx, filter)
 }
 
 // UpdateAlert implements AlertRepository.UpdateAlert
-func (r *RepositoryImpl) UpdateAlert(ctx context.Context, alert *models.Alert) error {
+func (r *RepositoryAdapter) UpdateAlert(ctx context.Context, alert *models.Alert) error {
 	return r.store.UpdateAlertWithContext(ctx, alert)
 }
 
 // DeleteAlert implements AlertRepository.DeleteAlert
-func (r *RepositoryImpl) DeleteAlert(ctx context.Context, id string) error {
+func (r *RepositoryAdapter) DeleteAlert(ctx context.Context, id string) error {
 	return r.store.DeleteAlertWithContext(ctx, id)
 }
 
 // CountAlerts implements AlertRepository.CountAlerts
-func (r *RepositoryImpl) CountAlerts(ctx context.Context, filter AlertFilter) (int, error) {
+func (r *RepositoryAdapter) CountAlerts(ctx context.Context, filter AlertFilter) (int, error) {
 	return r.store.CountAlerts(ctx, filter)
 }
 
 // WithTransaction implements Repository.WithTransaction
-func (r *RepositoryImpl) WithTransaction(ctx context.Context, fn func(Repository) error) error {
+func (r *RepositoryAdapter) WithTransaction(ctx context.Context, fn func(Repository) error) error {
 	return r.store.WithTransaction(ctx, fn)
 }
 
 // HealthCheck implements Repository.HealthCheck
-func (r *RepositoryImpl) HealthCheck() error {
+func (r *RepositoryAdapter) HealthCheck() error {
 	return r.store.HealthCheck()
 }
 
 // Close implements Repository.Close
-func (r *RepositoryImpl) Close() error {
+func (r *RepositoryAdapter) Close() error {
 	return r.store.Close()
 }
