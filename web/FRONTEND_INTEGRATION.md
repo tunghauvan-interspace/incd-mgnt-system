@@ -4,7 +4,7 @@ This document explains how the Vue.js frontend integrates with the Go backend.
 
 ## Build Process
 
-The Vue.js application is built using Vite and outputs to the `web/static/` directory, which the Go backend serves directly.
+The Vue.js application is built using Vite and outputs to the `web/frontend/dist/` directory. For production deployment, these files should be copied to the appropriate location for the Go backend to serve.
 
 ### Development
 
@@ -22,18 +22,22 @@ cd web/frontend
 npm run build
 ```
 
-This generates optimized static assets in `web/static/`:
+This generates optimized static assets in `web/frontend/dist/`:
 - `index.html` - Single page application entry point
 - `css/` - Stylesheet bundles  
 - `js/` - JavaScript bundles
+
+**Note**: The build files are not committed to git. In production, copy the contents of `web/frontend/dist/` to your web server's static file directory.
 
 ## Go Backend Integration
 
 The Go backend should serve the Vue.js SPA by:
 
-1. **Serving static assets** from `web/static/` for CSS/JS files
+1. **Serving static assets** from the appropriate directory for CSS/JS files  
 2. **Serving `index.html`** for all frontend routes to enable client-side routing
 3. **Keeping API routes** (`/api/*`) unchanged for the frontend to consume
+
+**Deployment**: Copy the contents of `web/frontend/dist/` to your static file serving directory.
 
 ### Suggested Go Handler Changes
 
@@ -47,13 +51,13 @@ func (h *Handler) handleSPA(w http.ResponseWriter, r *http.Request) {
     }
     
     // Serve index.html for all frontend routes
-    http.ServeFile(w, r, "web/static/index.html")
+    http.ServeFile(w, r, "path/to/frontend/index.html")
 }
 
 // In your router setup:
-// Static files
-http.Handle("/css/", http.StripPrefix("/", http.FileServer(http.Dir("web/static/"))))
-http.Handle("/js/", http.StripPrefix("/", http.FileServer(http.Dir("web/static/"))))
+// Static files (adjust path as needed)
+http.Handle("/css/", http.StripPrefix("/", http.FileServer(http.Dir("path/to/static/"))))
+http.Handle("/js/", http.StripPrefix("/", http.FileServer(http.Dir("path/to/static/"))))
 
 // API routes (existing)
 http.HandleFunc("/api/incidents", h.handleIncidents)

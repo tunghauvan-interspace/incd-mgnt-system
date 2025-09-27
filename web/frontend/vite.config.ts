@@ -11,8 +11,8 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: '../static',
-    emptyOutDir: false,
+    outDir: 'dist',
+    emptyOutDir: true,
     rollupOptions: {
       output: {
         entryFileNames: 'js/[name]-[hash].js',
