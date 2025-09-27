@@ -526,3 +526,67 @@ func TestDurationParsing(t *testing.T) {
 	// Cleanup
 	clearEnvVars([]string{"SERVER_READ_TIMEOUT", "SERVER_WRITE_TIMEOUT", "MAX_INCIDENT_AGE"})
 }
+
+// Benchmark tests for configuration loading performance
+func BenchmarkLoadConfig(b *testing.B) {
+	// Set up environment variables for consistent benchmarking
+	setEnvVars(map[string]string{
+		"PORT":                "8080",
+		"LOG_LEVEL":           "info",
+		"DATABASE_URL":        "postgres://user:pass@localhost:5432/db",
+		"DB_MAX_OPEN_CONNS":   "25",
+		"SLACK_TOKEN":         "xoxb-benchmark-token",
+		"SLACK_CHANNEL":       "#benchmark",
+		"EMAIL_SMTP_HOST":     "smtp.benchmark.com",
+		"METRICS_ENABLED":     "true",
+	})
+	defer clearEnvVars([]string{
+		"PORT", "LOG_LEVEL", "DATABASE_URL", "DB_MAX_OPEN_CONNS",
+		"SLACK_TOKEN", "SLACK_CHANNEL", "EMAIL_SMTP_HOST", "METRICS_ENABLED",
+	})
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		LoadConfig()
+	}
+}
+
+func BenchmarkLoadAndValidateConfig(b *testing.B) {
+	setEnvVars(map[string]string{
+		"PORT":              "8080",
+		"LOG_LEVEL":         "info",
+		"DATABASE_URL":      "postgres://user:pass@localhost:5432/db",
+		"SLACK_TOKEN":       "xoxb-benchmark-token",
+		"SLACK_CHANNEL":     "#benchmark",
+		"METRICS_ENABLED":   "true",
+		"METRICS_PORT":      "9090",
+	})
+	defer clearEnvVars([]string{
+		"PORT", "LOG_LEVEL", "DATABASE_URL", "SLACK_TOKEN",
+		"SLACK_CHANNEL", "METRICS_ENABLED", "METRICS_PORT",
+	})
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		LoadAndValidateConfig()
+	}
+}
+
+func BenchmarkConfigValidation(b *testing.B) {
+	cfg := &Config{
+		Port:                "8080",
+		LogLevel:            "info",
+		MetricsPort:         "9090",
+		DBMaxOpenConns:      25,
+		DBMaxIdleConns:      5,
+		AlertmanagerTimeout: 30,
+		EmailSMTPPort:       587,
+		SlackToken:          "xoxb-benchmark-token",
+		SlackChannel:        "#benchmark",
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		cfg.Validate()
+	}
+}
