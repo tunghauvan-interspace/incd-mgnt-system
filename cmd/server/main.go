@@ -17,11 +17,32 @@ import (
 )
 
 func main() {
-	cfg := config.LoadConfig()
+	// Load and validate configuration
+	cfg, err := config.LoadAndValidateConfig()
+	if err != nil {
+		log.Fatalf("Configuration validation failed: %v", err)
+	}
+
+	log.Printf("Starting Incident Management System...")
+	log.Printf("Configuration loaded successfully")
+	
+	if cfg.DebugMode {
+		log.Printf("DEBUG MODE: Configuration details:")
+		log.Printf("  - Port: %s", cfg.Port)
+		log.Printf("  - Log Level: %s", cfg.LogLevel)
+		log.Printf("  - Database: %s", func() string {
+			if cfg.DatabaseURL != "" {
+				return "PostgreSQL (configured)"
+			}
+			return "In-Memory"
+		}())
+		log.Printf("  - Notifications: %t", cfg.HasNotificationConfigured())
+		log.Printf("  - TLS: %t", cfg.IsTLSEnabled())
+		log.Printf("  - Metrics: %t (port %s)", cfg.MetricsEnabled, cfg.MetricsPort)
+	}
 
 	// Initialize storage - use PostgreSQL if DATABASE_URL is provided, otherwise use memory store
 	var store storage.Store
-	var err error
 	
 	if cfg.DatabaseURL != "" {
 		log.Println("Initializing PostgreSQL storage...")
@@ -38,6 +59,7 @@ func main() {
 			log.Fatal("Failed to initialize memory storage:", err)
 		}
 		log.Println("Memory storage initialized successfully")
+		log.Println("WARNING: Using in-memory storage - data will be lost on restart")
 	}
 
 	// Initialize services
@@ -80,70 +102,68 @@ func main() {
 		}
 	}()
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
+	// Create HTTP server with configured timeouts
+	server := &http.Server{
+		Addr:           ":" + cfg.Port,
+		Handler:        mux,
+		ReadTimeout:    cfg.ServerReadTimeout,
+		WriteTimeout:   cfg.ServerWriteTimeout,
+		IdleTimeout:    cfg.ServerIdleTimeout,
+		MaxHeaderBytes: 1 << 20, // 1MB
 	}
 
+	// Setup graceful shutdown
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	logger.Info("Starting Incident Management System", map[string]interface{}{
-		"port": port,
+		"port": cfg.Port,
 		"log_level": cfg.LogLevel,
 		"structured_logging": true,
 		"metrics_enabled": cfg.MetricsEnabled,
 	})
 
-	// Create HTTP server with timeouts for better reliability
-	server := &http.Server{
-		Addr:         ":" + port,
-		Handler:      h,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  60 * time.Second,
-	}
-
-	// Channel to listen for interrupt signal
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
-
-	// Start server in goroutine
+	// Start server in a goroutine
 	go func() {
-		log.Printf("Starting Incident Management System on port %s", port)
-		log.Printf("Server configured with:")
-		log.Printf("  - Read timeout: %v", server.ReadTimeout)
-		log.Printf("  - Write timeout: %v", server.WriteTimeout)
-		log.Printf("  - Idle timeout: %v", server.IdleTimeout)
-		
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Printf("Server error: %v", err)
-			stop <- syscall.SIGTERM
+		if cfg.IsTLSEnabled() {
+			log.Printf("Starting HTTPS server on port %s", cfg.Port)
+			if err := server.ListenAndServeTLS(cfg.TLSCertFile, cfg.TLSKeyFile); err != nil && err != http.ErrServerClosed {
+				log.Fatalf("HTTPS server failed to start: %v", err)
+			}
+		} else {
+			log.Printf("Starting HTTP server on port %s", cfg.Port)
+			if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				log.Fatalf("HTTP server failed to start: %v", err)
+			}
 		}
 	}()
 
+	log.Printf("Incident Management System started successfully")
+	if !cfg.HasNotificationConfigured() {
+		log.Printf("WARNING: No notification methods configured - alerts will not be sent")
+	}
+
 	// Wait for interrupt signal
-	<-stop
+	<-ctx.Done()
+	stop()
+	log.Println("Shutting down server...")
 
-	log.Println("Shutting down server gracefully...")
-
-	// Create context with timeout for graceful shutdown
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// Create shutdown context with timeout
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	// Attempt graceful shutdown
-	if err := server.Shutdown(ctx); err != nil {
+	if err := server.Shutdown(shutdownCtx); err != nil {
 		log.Printf("Server forced to shutdown: %v", err)
 	} else {
-		log.Println("Server gracefully stopped")
+		log.Println("Server shutdown gracefully")
 	}
 
-	// Cleanup storage connections if needed
+	// Close storage connections
 	if pgStore, ok := store.(*storage.PostgresStore); ok {
-		log.Println("Closing database connections...")
-		if err := pgStore.Close(); err != nil {
-			log.Printf("Error closing database connections: %v", err)
-		} else {
-			log.Println("Database connections closed successfully")
-		}
+		pgStore.Close()
+		log.Println("Database connections closed")
 	}
 
-	log.Println("Application shutdown complete")
+	log.Println("Shutdown complete")
 }

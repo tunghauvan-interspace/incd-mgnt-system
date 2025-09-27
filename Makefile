@@ -1,69 +1,216 @@
 # Makefile for Incident Management System
 
-# Go parameters
-GOCMD=go
-GOBUILD=$(GOCMD) build
-GOCLEAN=$(GOCMD) clean
-GOTEST=$(GOCMD) test
-GOGET=$(GOCMD) get
-GOMOD=$(GOCMD) mod
+# Variables
 BINARY_NAME=incident-management
-BINARY_UNIX=$(BINARY_NAME)_unix
+GO_VERSION=1.21
+
+# Colors for output
+GREEN=\033[0;32m
+YELLOW=\033[1;33m
+BLUE=\033[0;34m
+NC=\033[0m # No Color
+
+.PHONY: help build test test-unit test-integration test-config test-all clean lint fmt vet deps benchmark
+
+# Default target
+help: ## Show this help message
+	@echo 'Usage: make [target]'
+	@echo ''
+	@echo 'Targets:'
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  $(BLUE)%-15s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 # Build targets
-.PHONY: all build clean test coverage deps help
+build: ## Build the application
+	@echo "$(GREEN)Building $(BINARY_NAME)...$(NC)"
+	@go build -o $(BINARY_NAME) ./cmd/server
+	@echo "$(GREEN)Build complete: $(BINARY_NAME)$(NC)"
 
-all: test build
+build-docker: ## Build Docker image
+	@echo "$(GREEN)Building Docker image...$(NC)"
+	@docker build -t $(BINARY_NAME) .
+	@echo "$(GREEN)Docker image built: $(BINARY_NAME)$(NC)"
 
-# Build the application
-build:
-	@echo "🔨 Building application..."
-	$(GOBUILD) -o $(BINARY_NAME) -v ./cmd/server
+# Test targets
+test: test-unit ## Run unit tests (default)
 
-# Build for Linux
-build-linux:
-	@echo "🔨 Building for Linux..."
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GOBUILD) -o $(BINARY_UNIX) -v ./cmd/server
+test-unit: ## Run unit tests only
+	@echo "$(GREEN)Running unit tests...$(NC)"
+	@go test ./... -v -short
 
-# Clean build artifacts
-clean:
-	@echo "🧹 Cleaning..."
-	$(GOCLEAN)
-	rm -f $(BINARY_NAME)
-	rm -f $(BINARY_UNIX)
-	rm -f /tmp/integration_test_*
+test-config: ## Run configuration tests only
+	@echo "$(GREEN)Running configuration tests...$(NC)"
+	@go test ./internal/config -v
 
-# Install dependencies
-deps:
-	@echo "📦 Installing dependencies..."
-	$(GOMOD) download
-	$(GOMOD) tidy
+test-integration: ## Run integration tests
+	@echo "$(GREEN)Running integration tests...$(NC)"
+	@./scripts/run-integration-tests.sh
 
-# Run unit tests
-test:
-	@echo "🧪 Running unit tests..."
-	$(GOTEST) -v ./internal/...
+test-all: ## Run all tests (unit + integration)
+	@echo "$(GREEN)Running all tests...$(NC)"
+	@go test ./... -v -short
+	@./scripts/run-integration-tests.sh
 
-# Run tests with coverage
-coverage:
-	@echo "📊 Running tests with coverage..."
-	$(GOTEST) -v -coverprofile=coverage.out ./internal/...
-	$(GOCMD) tool cover -html=coverage.out -o coverage.html
-	@echo "📈 Coverage report generated: coverage.html"
+test-coverage: ## Run tests with coverage report
+	@echo "$(GREEN)Running tests with coverage...$(NC)"
+	@go test ./... -coverprofile=coverage.out
+	@go tool cover -html=coverage.out -o coverage.html
+	@echo "$(GREEN)Coverage report generated: coverage.html$(NC)"
 
-# Run integration tests
-integration-test:
-	@echo "🧪 Running integration tests..."
-	./scripts/integration-test.sh
+benchmark: ## Run benchmark tests
+	@echo "$(GREEN)Running benchmark tests...$(NC)"
+	@go test ./internal/config -bench=. -benchmem
 
-# Run all tests (unit + integration)
-test-all: test integration-test
+# Database targets
+db-start: ## Start PostgreSQL database using Docker
+	@echo "$(GREEN)Starting PostgreSQL database...$(NC)"
+	@docker compose up -d postgres
+	@echo "$(GREEN)Database started$(NC)"
 
-# Run PostgreSQL tests
-test-postgres:
-	@echo "🐘 Running PostgreSQL tests..."
+db-stop: ## Stop PostgreSQL database
+	@echo "$(GREEN)Stopping PostgreSQL database...$(NC)"
+	@docker compose down postgres
+	@echo "$(GREEN)Database stopped$(NC)"
+
+db-reset: ## Reset database (stop, remove, start)
+	@echo "$(GREEN)Resetting database...$(NC)"
+	@docker compose down postgres
+	@docker volume rm $$(docker volume ls -q | grep postgres) 2>/dev/null || true
+	@docker compose up -d postgres
+	@echo "$(GREEN)Database reset complete$(NC)"
+
+db-verify: ## Verify database connectivity and schema
+	@echo "$(GREEN)Verifying database...$(NC)"
+	@./scripts/verify-database.sh
+
+# Development targets
+dev: ## Start development environment
+	@echo "$(GREEN)Starting development environment...$(NC)"
+	@docker compose up -d postgres prometheus alertmanager
+	@echo "$(GREEN)Development environment started$(NC)"
+	@echo "$(YELLOW)PostgreSQL: localhost:5432$(NC)"
+	@echo "$(YELLOW)Prometheus: http://localhost:9090$(NC)"
+	@echo "$(YELLOW)Alertmanager: http://localhost:9093$(NC)"
+
+dev-stop: ## Stop development environment
+	@echo "$(GREEN)Stopping development environment...$(NC)"
+	@docker compose down
+	@echo "$(GREEN)Development environment stopped$(NC)"
+
+run: build ## Build and run the application
+	@echo "$(GREEN)Starting $(BINARY_NAME)...$(NC)"
+	@./$(BINARY_NAME)
+
+run-debug: build ## Build and run with debug mode
+	@echo "$(GREEN)Starting $(BINARY_NAME) in debug mode...$(NC)"
+	@DEBUG_MODE=true LOG_LEVEL=debug ./$(BINARY_NAME)
+
+# Code quality targets
+fmt: ## Format Go code
+	@echo "$(GREEN)Formatting code...$(NC)"
+	@go fmt ./...
+
+vet: ## Run go vet
+	@echo "$(GREEN)Running go vet...$(NC)"
+	@go vet ./...
+
+lint: ## Run golangci-lint (requires golangci-lint to be installed)
+	@echo "$(GREEN)Running linter...$(NC)"
+	@golangci-lint run || echo "$(YELLOW)golangci-lint not installed. Install with: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest$(NC)"
+
+deps: ## Download and tidy dependencies
+	@echo "$(GREEN)Downloading dependencies...$(NC)"
+	@go mod download
+	@go mod tidy
+	@echo "$(GREEN)Dependencies updated$(NC)"
+
+deps-update: ## Update dependencies
+	@echo "$(GREEN)Updating dependencies...$(NC)"
+	@go get -u ./...
+	@go mod tidy
+	@echo "$(GREEN)Dependencies updated$(NC)"
+
+# Configuration targets
+config-validate: ## Validate current configuration
+	@echo "$(GREEN)Validating configuration...$(NC)"
+	@go run ./cmd/server --validate-config 2>/dev/null || echo "$(YELLOW)Note: --validate-config flag not implemented yet$(NC)"
+
+config-example: ## Show example configuration
+	@echo "$(GREEN)Example configuration:$(NC)"
+	@cat .env.example
+
+# Clean targets
+clean: ## Clean build artifacts
+	@echo "$(GREEN)Cleaning build artifacts...$(NC)"
+	@rm -f $(BINARY_NAME)
+	@rm -f coverage.out coverage.html
+	@go clean
+	@echo "$(GREEN)Clean complete$(NC)"
+
+clean-all: clean ## Clean everything including Docker containers and volumes
+	@echo "$(GREEN)Cleaning all Docker resources...$(NC)"
+	@docker compose down --volumes --remove-orphans 2>/dev/null || true
+	@docker rmi $(BINARY_NAME) 2>/dev/null || true
+	@echo "$(GREEN)Clean all complete$(NC)"
+
+# Production targets
+prod-build: ## Build for production
+	@echo "$(GREEN)Building for production...$(NC)"
+	@CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags '-w -s' -o $(BINARY_NAME) ./cmd/server
+	@echo "$(GREEN)Production build complete$(NC)"
+
+prod-test: ## Run production readiness tests
+	@echo "$(GREEN)Running production readiness tests...$(NC)"
+	@$(MAKE) test-all
+	@$(MAKE) benchmark
+	@echo "$(GREEN)Production tests complete$(NC)"
+
+# Docker Compose targets
+up: ## Start all services using Docker Compose
+	@echo "$(GREEN)Starting all services...$(NC)"
+	@docker compose up -d
+	@echo "$(GREEN)All services started$(NC)"
+
+down: ## Stop all services
+	@echo "$(GREEN)Stopping all services...$(NC)"
+	@docker compose down
+	@echo "$(GREEN)All services stopped$(NC)"
+
+logs: ## Show logs from all services
+	@docker compose logs -f
+
+logs-app: ## Show logs from application only
+	@docker compose logs -f incident-management
+
+# Health check targets
+health: ## Check health of running services
+	@echo "$(GREEN)Checking service health...$(NC)"
+	@curl -s http://localhost:8080/health || echo "$(YELLOW)Application not responding$(NC)"
+	@curl -s http://localhost:9090/-/healthy || echo "$(YELLOW)Prometheus not responding$(NC)"
+	@curl -s http://localhost:9093/-/healthy || echo "$(YELLOW)Alertmanager not responding$(NC)"
+
+# Documentation targets
+docs: ## Generate documentation
+	@echo "$(GREEN)Generating documentation...$(NC)"
+	@godoc -http=:6060 &
+	@echo "$(GREEN)Documentation server started at http://localhost:6060$(NC)"
+	@echo "$(YELLOW)Press Ctrl+C to stop$(NC)"
+
+# Install targets
+install: build ## Install the application binary
+	@echo "$(GREEN)Installing $(BINARY_NAME)...$(NC)"
+	@cp $(BINARY_NAME) /usr/local/bin/
+	@echo "$(GREEN)$(BINARY_NAME) installed to /usr/local/bin/$(NC)"
+
+uninstall: ## Uninstall the application binary
+	@echo "$(GREEN)Uninstalling $(BINARY_NAME)...$(NC)"
+	@rm -f /usr/local/bin/$(BINARY_NAME)
+	@echo "$(GREEN)$(BINARY_NAME) uninstalled$(NC)"
+
+# Additional targets from main branch
+test-postgres: ## Run PostgreSQL tests
+	@echo "$(GREEN)Running PostgreSQL tests...$(NC)"
 	@if [ -z "$(TEST_DATABASE_URL)" ]; then \
-		echo "⚠️  Setting up test database..."; \
+		echo "$(YELLOW)Setting up test database...$(NC)"; \
 		docker compose up -d postgres; \
 		sleep 10; \
 		export TEST_DATABASE_URL="postgres://user:password@localhost:5432/incidentdb?sslmode=disable"; \
@@ -73,169 +220,30 @@ test-postgres:
 		docker compose down postgres; \
 	fi
 
-# Start development environment
-dev:
-	@echo "🚀 Starting development environment..."
-	docker compose up --build
+docker-run: docker-build ## Run Docker container
+	@echo "$(GREEN)Running Docker container...$(NC)"
+	docker run -p 8080:8080 $(BINARY_NAME)
 
-# Start only the application
-run:
-	@echo "🚀 Starting application..."
-	$(GOBUILD) -o $(BINARY_NAME) -v ./cmd/server
-	./$(BINARY_NAME)
+profile-cpu: ## CPU profiling (requires running app)
+	@echo "$(GREEN)Starting CPU profiling (30s)...$(NC)"
+	@curl -s "http://localhost:8080/debug/pprof/profile?seconds=30" > cpu.prof || echo "$(YELLOW)Application not running with pprof enabled$(NC)"
 
-# Run with PostgreSQL
-run-postgres:
-	@echo "🚀 Starting with PostgreSQL..."
-	docker compose up -d postgres
-	@echo "⏳ Waiting for PostgreSQL..."
-	@sleep 10
-	DATABASE_URL="postgres://user:password@localhost:5432/incidentdb?sslmode=disable" ./$(BINARY_NAME)
+profile-mem: ## Memory profiling (requires running app)
+	@echo "$(GREEN)Getting memory profile...$(NC)"
+	@curl -s "http://localhost:8080/debug/pprof/heap" > mem.prof || echo "$(YELLOW)Application not running with pprof enabled$(NC)"
 
-# Database management
-db-up:
-	@echo "🐘 Starting PostgreSQL..."
-	docker compose up -d postgres
-
-db-down:
-	@echo "🛑 Stopping PostgreSQL..."
-	docker compose down postgres
-
-db-clean: db-down
-	@echo "🧹 Cleaning PostgreSQL data..."
-	docker compose down -v postgres
-
-# Linting and formatting
-fmt:
-	@echo "🎨 Formatting code..."
-	$(GOCMD) fmt ./...
-
-vet:
-	@echo "🔍 Vetting code..."
-	$(GOCMD) vet ./...
-
-# Security scanning
-sec:
-	@echo "🔒 Running security scan..."
-	@if command -v gosec >/dev/null 2>&1; then \
-		gosec ./...; \
-	else \
-		echo "⚠️  gosec not installed. Install with: go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest"; \
-	fi
-
-# Docker targets
-docker-build:
-	@echo "🐳 Building Docker image..."
-	docker build -t incident-management .
-
-docker-run: docker-build
-	@echo "🐳 Running Docker container..."
-	docker run -p 8080:8080 incident-management
-
-# Monitoring and metrics
-metrics:
-	@echo "📊 Fetching metrics..."
-	@curl -s http://localhost:8080/metrics 2>/dev/null || echo "❌ Application not running on localhost:8080"
-
-health:
-	@echo "❤️  Checking health..."
-	@curl -s http://localhost:8080/health 2>/dev/null | jq . || echo "❌ Application not running on localhost:8080"
-
-ready:
-	@echo "✅ Checking readiness..."
-	@curl -s http://localhost:8080/ready 2>/dev/null | jq . || echo "❌ Application not running on localhost:8080"
-
-# Documentation
-docs:
-	@echo "📚 Generating documentation..."
-	@if command -v godoc >/dev/null 2>&1; then \
-		echo "🌐 Starting documentation server at http://localhost:6060"; \
-		godoc -http=:6060; \
-	else \
-		echo "⚠️  godoc not installed. Install with: go install golang.org/x/tools/cmd/godoc@latest"; \
-	fi
-
-# Benchmarking
-bench:
-	@echo "⚡ Running benchmarks..."
-	$(GOTEST) -bench=. -benchmem ./...
-
-# Performance profiling
-profile-cpu:
-	@echo "🔍 Starting CPU profiling (30s)..."
-	@curl -s "http://localhost:8080/debug/pprof/profile?seconds=30" > cpu.prof || echo "❌ Application not running with pprof enabled"
-
-profile-mem:
-	@echo "🔍 Getting memory profile..."
-	@curl -s "http://localhost:8080/debug/pprof/heap" > mem.prof || echo "❌ Application not running with pprof enabled"
-
-# Development helpers
-watch:
-	@echo "👀 Watching for changes..."
+watch: ## Watch for changes and auto-rebuild
+	@echo "$(GREEN)Watching for changes...$(NC)"
 	@if command -v air >/dev/null 2>&1; then \
 		air; \
 	else \
-		echo "⚠️  air not installed. Install with: go install github.com/cosmtrek/air@latest"; \
-		echo "ℹ️  Falling back to basic watch..."; \
+		echo "$(YELLOW)air not installed. Install with: go install github.com/cosmtrek/air@latest$(NC)"; \
+		echo "$(YELLOW)Falling back to basic watch...$(NC)"; \
 		while true; do \
 			$(GOTEST) -v ./...; \
 			sleep 5; \
 		done; \
 	fi
 
-# Release targets
-release: clean deps test-all build-linux
-	@echo "🎉 Release build complete!"
-
-# Help target
-help:
-	@echo "🚀 Incident Management System - Make Commands"
-	@echo ""
-	@echo "📦 Building:"
-	@echo "  build              Build the application"
-	@echo "  build-linux        Build for Linux (production)"
-	@echo "  clean              Clean build artifacts"
-	@echo "  deps               Install/update dependencies"
-	@echo ""
-	@echo "🧪 Testing:"
-	@echo "  test               Run unit tests"
-	@echo "  test-all           Run unit + integration tests"
-	@echo "  integration-test   Run comprehensive integration tests"
-	@echo "  test-postgres      Run PostgreSQL integration tests"
-	@echo "  coverage           Generate test coverage report"
-	@echo ""
-	@echo "🚀 Running:"
-	@echo "  run                Run the application (memory store)"
-	@echo "  run-postgres       Run with PostgreSQL"
-	@echo "  dev                Start development environment (Docker)"
-	@echo "  watch              Watch for changes and auto-rebuild"
-	@echo ""
-	@echo "🐘 Database:"
-	@echo "  db-up              Start PostgreSQL"
-	@echo "  db-down            Stop PostgreSQL"
-	@echo "  db-clean           Clean PostgreSQL data"
-	@echo ""
-	@echo "📊 Monitoring:"
-	@echo "  health             Check application health"
-	@echo "  ready              Check application readiness"
-	@echo "  metrics            Fetch Prometheus metrics"
-	@echo ""
-	@echo "🔧 Quality:"
-	@echo "  fmt                Format code"
-	@echo "  vet                Vet code"
-	@echo "  sec                Security scan (requires gosec)"
-	@echo ""
-	@echo "🐳 Docker:"
-	@echo "  docker-build       Build Docker image"
-	@echo "  docker-run         Run Docker container"
-	@echo ""
-	@echo "📚 Other:"
-	@echo "  docs               Start documentation server"
-	@echo "  bench              Run benchmarks"
-	@echo "  profile-cpu        CPU profiling (requires running app)"
-	@echo "  profile-mem        Memory profiling (requires running app)"
-	@echo "  release            Build release version"
-	@echo "  help               Show this help message"
-
-# Default target
-.DEFAULT_GOAL := help
+release: clean deps test-all build-linux ## Build release version
+	@echo "$(GREEN)Release build complete!$(NC)"
