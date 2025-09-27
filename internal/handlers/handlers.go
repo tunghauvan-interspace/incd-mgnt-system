@@ -108,6 +108,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	// Health check endpoints
 	mux.HandleFunc("/health", h.handleHealth)
 	mux.HandleFunc("/ready", h.handleReady)
+	mux.HandleFunc("/db/stats", h.handleDBStats)
 }
 
 // handleAlertmanagerWebhook handles incoming webhooks from Alertmanager with reliability improvements
@@ -510,6 +511,55 @@ func (h *Handler) handleReady(w http.ResponseWriter, r *http.Request) {
 		"status":    status,
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 		"checks":    checks,
+	})
+}
+
+// handleDBStats handles database connection statistics requests
+func (h *Handler) handleDBStats(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	h.logger.DebugWithRequest(r.Context(), "Database stats requested")
+
+	stats := make(map[string]interface{})
+	
+	// Get database connection pool statistics
+	if pgStore, ok := h.store.(*storage.PostgresStore); ok {
+		dbStats := pgStore.GetDBStats()
+		stats["database"] = map[string]interface{}{
+			"type":                     "postgresql",
+			"max_open_connections":     dbStats.MaxOpenConnections,
+			"open_connections":         dbStats.OpenConnections,
+			"in_use":                  dbStats.InUse,
+			"idle":                    dbStats.Idle,
+			"wait_count":              dbStats.WaitCount,
+			"wait_duration":           dbStats.WaitDuration.String(),
+			"max_idle_closed":         dbStats.MaxIdleClosed,
+			"max_idle_time_closed":    dbStats.MaxIdleTimeClosed,
+			"max_lifetime_closed":     dbStats.MaxLifetimeClosed,
+		}
+		
+		// Add health status
+		if err := pgStore.HealthCheck(); err != nil {
+			stats["database"].(map[string]interface{})["health"] = "unhealthy"
+			stats["database"].(map[string]interface{})["health_error"] = err.Error()
+		} else {
+			stats["database"].(map[string]interface{})["health"] = "healthy"
+		}
+	} else {
+		stats["database"] = map[string]interface{}{
+			"type":   "memory",
+			"health": "healthy",
+			"note":   "Memory store does not have connection statistics",
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+		"stats":     stats,
 	})
 }
 
