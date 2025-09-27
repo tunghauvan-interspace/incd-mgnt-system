@@ -2,25 +2,37 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/tunghauvan-interspace/incd-mgnt-system/internal/circuitbreaker"
+	"github.com/tunghauvan-interspace/incd-mgnt-system/internal/idempotency"
+	"github.com/tunghauvan-interspace/incd-mgnt-system/internal/ratelimit"
+	"github.com/tunghauvan-interspace/incd-mgnt-system/internal/retry"
 	"github.com/tunghauvan-interspace/incd-mgnt-system/internal/services"
 	"github.com/tunghauvan-interspace/incd-mgnt-system/internal/storage"
+	"github.com/tunghauvan-interspace/incd-mgnt-system/internal/validation"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // Handler handles HTTP requests
 type Handler struct {
-	incidentService     *services.IncidentService
-	alertService        *services.AlertService
-	notificationService *services.NotificationService
-	metricsService      *services.MetricsService
-	logger              *services.Logger
-	store               storage.Store
+	incidentService       *services.IncidentService
+	alertService          *services.AlertService
+	notificationService   *services.NotificationService
+	webhookValidator      *validation.WebhookValidator
+	idempotencyManager    *idempotency.WebhookIdempotencyManager
+	retryer              *retry.Retryer
+	rateLimitConfig      *ratelimit.RateLimitConfig
+	circuitBreaker       *circuitbreaker.CircuitBreaker
+	metricsService       *services.MetricsService
+	logger               *services.Logger
+	store                storage.Store
 }
 
 // NewHandler creates a new handler
@@ -32,10 +44,39 @@ func NewHandler(
 	logger *services.Logger,
 	store storage.Store,
 ) *Handler {
+	// Initialize reliability components
+	webhookValidator := validation.NewWebhookValidator()
+	idempotencyStore := idempotency.NewMemoryIdempotencyStore()
+	idempotencyManager := idempotency.NewWebhookIdempotencyManager(idempotencyStore, 10*time.Minute)
+	
+	// Create retry policy for webhook processing
+	retryPolicy := &retry.RetryPolicy{
+		MaxAttempts: 3,
+		BaseDelay:   200 * time.Millisecond,
+		MaxDelay:    2 * time.Second,
+		Multiplier:  2.0,
+	}
+	retryer := retry.NewRetryer(retryPolicy, retry.DefaultIsRetryable)
+	
+	// Rate limiting configuration
+	rateLimitConfig := ratelimit.DefaultWebhookRateLimit()
+	
+	// Circuit breaker for notification service
+	cbConfig := circuitbreaker.DefaultConfig()
+	cbConfig.OnStateChange = func(name string, from circuitbreaker.State, to circuitbreaker.State) {
+		log.Printf("Circuit breaker '%s' changed state from %s to %s", name, from, to)
+	}
+	circuitBreaker := circuitbreaker.NewCircuitBreaker("notification-service", cbConfig)
+	
 	return &Handler{
 		incidentService:     incidentService,
 		alertService:        alertService,
 		notificationService: notificationService,
+		webhookValidator:    webhookValidator,
+		idempotencyManager:  idempotencyManager,
+		retryer:            retryer,
+		rateLimitConfig:    rateLimitConfig,
+		circuitBreaker:     circuitBreaker,
 		metricsService:      metricsService,
 		logger:              logger,
 		store:               store,
@@ -44,8 +85,10 @@ func NewHandler(
 
 // RegisterRoutes registers all HTTP routes
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
-	// API routes
-	mux.HandleFunc("/api/webhooks/alertmanager", h.handleAlertmanagerWebhook)
+	// API routes with rate limiting
+	webhookHandler := ratelimit.WebhookRateLimitWrapper(h.rateLimitConfig, h.handleAlertmanagerWebhook)
+	mux.HandleFunc("/api/webhooks/alertmanager", webhookHandler)
+	
 	mux.HandleFunc("/api/incidents/", h.handleIncidents)
 	mux.HandleFunc("/api/incidents", h.handleListIncidents)
 	mux.HandleFunc("/api/alerts", h.handleListAlerts)
@@ -67,42 +110,137 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/ready", h.handleReady)
 }
 
-// handleAlertmanagerWebhook handles incoming webhooks from Alertmanager
+// handleAlertmanagerWebhook handles incoming webhooks from Alertmanager with reliability improvements
 func (h *Handler) handleAlertmanagerWebhook(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	
+	// Validate HTTP method
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		h.writeErrorResponse(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	h.logger.InfoWithRequest(r.Context(), "Received Alertmanager webhook")
+	h.logger.InfoWithRequest(ctx, "Received Alertmanager webhook")
 
+	// Validate HTTP method
+	if r.Method != http.MethodPost {
+		h.writeErrorResponse(w, "Method not allowed", http.StatusMethodNotAllowed)
+		h.metricsService.RecordWebhookRequest("alertmanager", "error")
+		return
+	}
+
+	// Read and validate request body
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		log.Printf("Failed to read request body: %v", err)
+		h.writeErrorResponse(w, "Failed to read request body", http.StatusBadRequest)
+		h.metricsService.RecordWebhookRequest("alertmanager", "error")
+		return
+	}
+
+	// Validate payload size (prevent large payload attacks)
+	if len(body) > 1024*1024 { // 1MB limit
+		log.Printf("Request body too large: %d bytes", len(body))
+		h.writeErrorResponse(w, "Request body too large", http.StatusRequestEntityTooLarge)
+		h.metricsService.RecordWebhookRequest("alertmanager", "error")
+		return
+	}
+
+	// Check for empty body
+	if len(body) == 0 {
+		h.writeErrorResponse(w, "Empty request body", http.StatusBadRequest)
+		h.metricsService.RecordWebhookRequest("alertmanager", "error")
+		return
+	}
+
+	// Validate JSON schema
+	if err := h.webhookValidator.ValidateAlertmanagerWebhook(body); err != nil {
+		log.Printf("Webhook validation failed: %v", err)
+		h.writeErrorResponse(w, fmt.Sprintf("Invalid webhook payload: %v", err), http.StatusBadRequest)
+		h.metricsService.RecordWebhookRequest("alertmanager", "error")
+		return
+	}
+
+	// Check idempotency
+	if h.idempotencyManager.IsAlreadyProcessed(body) {
+		log.Printf("Duplicate webhook detected, returning cached response")
+		h.writeSuccessResponse(w, "Duplicate request processed successfully")
+		h.metricsService.RecordWebhookRequest("alertmanager", "success")
+		return
+	}
+
+	// Parse webhook payload
 	var webhook services.AlertmanagerWebhook
-	if err := json.NewDecoder(r.Body).Decode(&webhook); err != nil {
-		h.logger.ErrorWithRequest(r.Context(), "Invalid webhook JSON", map[string]interface{}{
-			"error": err.Error(),
-		})
+	if err := json.Unmarshal(body, &webhook); err != nil {
+		log.Printf("Failed to unmarshal webhook: %v", err)
+		h.writeErrorResponse(w, "Invalid JSON structure", http.StatusBadRequest)
 		h.metricsService.RecordWebhookRequest("alertmanager", "error")
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
 
-	if err := h.alertService.ProcessAlertmanagerWebhook(&webhook); err != nil {
-		h.logger.ErrorWithRequest(r.Context(), "Error processing alertmanager webhook", map[string]interface{}{
-			"error": err.Error(),
-		})
+	// Process webhook with retry logic and circuit breaker
+	err = h.retryer.Execute(ctx, func() error {
+		return h.processWebhookWithCircuitBreaker(&webhook)
+	})
+
+	if err != nil {
+		log.Printf("Failed to process webhook after retries: %v", err)
+		h.writeErrorResponse(w, "Failed to process webhook", http.StatusInternalServerError)
 		h.metricsService.RecordWebhookRequest("alertmanager", "error")
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
+	// Mark as processed for idempotency
+	if err := h.idempotencyManager.MarkAsProcessed(body); err != nil {
+		log.Printf("Failed to mark webhook as processed: %v", err)
+		// Don't fail the request for this error
+	}
+
+	// Return success response
+	h.writeSuccessResponse(w, "Webhook processed successfully")
 	h.metricsService.RecordWebhookRequest("alertmanager", "success")
-	h.logger.InfoWithRequest(r.Context(), "Successfully processed Alertmanager webhook", map[string]interface{}{
+	h.logger.InfoWithRequest(ctx, "Successfully processed Alertmanager webhook", map[string]interface{}{
 		"alerts_count": len(webhook.Alerts),
 		"status":       webhook.Status,
 	})
+}
 
+// processWebhookWithCircuitBreaker processes webhook with circuit breaker protection
+func (h *Handler) processWebhookWithCircuitBreaker(webhook *services.AlertmanagerWebhook) error {
+	return h.circuitBreaker.Call(func() error {
+		return h.alertService.ProcessAlertmanagerWebhook(webhook)
+	})
+}
+
+// writeErrorResponse writes a structured error response
+func (h *Handler) writeErrorResponse(w http.ResponseWriter, message string, statusCode int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	
+	response := map[string]interface{}{
+		"status": "error",
+		"error":  message,
+		"code":   statusCode,
+	}
+	
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Printf("Failed to write error response: %v", err)
+	}
+}
+
+// writeSuccessResponse writes a structured success response
+func (h *Handler) writeSuccessResponse(w http.ResponseWriter, message string) {
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	
+	response := map[string]interface{}{
+		"status":  "success",
+		"message": message,
+	}
+	
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Printf("Failed to write success response: %v", err)
+	}
 }
 
 // handleIncidents handles incident-related requests with different methods and paths
@@ -203,8 +341,10 @@ func (h *Handler) handleAcknowledgeIncident(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Send notification
-	if err := h.notificationService.NotifyIncidentAcknowledged(incident); err != nil {
+	// Send notification with circuit breaker
+	if err := h.sendNotificationWithCircuitBreaker(func() error {
+		return h.notificationService.NotifyIncidentAcknowledged(incident)
+	}); err != nil {
 		log.Printf("Failed to send acknowledgment notification: %v", err)
 	}
 
@@ -226,8 +366,10 @@ func (h *Handler) handleResolveIncident(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	// Send notification
-	if err := h.notificationService.NotifyIncidentResolved(incident); err != nil {
+	// Send notification with circuit breaker
+	if err := h.sendNotificationWithCircuitBreaker(func() error {
+		return h.notificationService.NotifyIncidentResolved(incident)
+	}); err != nil {
 		log.Printf("Failed to send resolution notification: %v", err)
 	}
 
@@ -369,6 +511,11 @@ func (h *Handler) handleReady(w http.ResponseWriter, r *http.Request) {
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 		"checks":    checks,
 	})
+}
+
+// sendNotificationWithCircuitBreaker sends notifications with circuit breaker protection
+func (h *Handler) sendNotificationWithCircuitBreaker(notificationFunc func() error) error {
+	return h.circuitBreaker.Call(notificationFunc)
 }
 
 // serveTemplate serves HTML templates
