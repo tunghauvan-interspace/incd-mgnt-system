@@ -205,3 +205,45 @@ uninstall: ## Uninstall the application binary
 	@echo "$(GREEN)Uninstalling $(BINARY_NAME)...$(NC)"
 	@rm -f /usr/local/bin/$(BINARY_NAME)
 	@echo "$(GREEN)$(BINARY_NAME) uninstalled$(NC)"
+
+# Additional targets from main branch
+test-postgres: ## Run PostgreSQL tests
+	@echo "$(GREEN)Running PostgreSQL tests...$(NC)"
+	@if [ -z "$(TEST_DATABASE_URL)" ]; then \
+		echo "$(YELLOW)Setting up test database...$(NC)"; \
+		docker compose up -d postgres; \
+		sleep 10; \
+		export TEST_DATABASE_URL="postgres://user:password@localhost:5432/incidentdb?sslmode=disable"; \
+	fi
+	TEST_DATABASE_URL="postgres://user:password@localhost:5432/incidentdb?sslmode=disable" $(GOTEST) -v ./internal/storage
+	@if [ -z "$(TEST_DATABASE_URL)" ]; then \
+		docker compose down postgres; \
+	fi
+
+docker-run: docker-build ## Run Docker container
+	@echo "$(GREEN)Running Docker container...$(NC)"
+	docker run -p 8080:8080 $(BINARY_NAME)
+
+profile-cpu: ## CPU profiling (requires running app)
+	@echo "$(GREEN)Starting CPU profiling (30s)...$(NC)"
+	@curl -s "http://localhost:8080/debug/pprof/profile?seconds=30" > cpu.prof || echo "$(YELLOW)Application not running with pprof enabled$(NC)"
+
+profile-mem: ## Memory profiling (requires running app)
+	@echo "$(GREEN)Getting memory profile...$(NC)"
+	@curl -s "http://localhost:8080/debug/pprof/heap" > mem.prof || echo "$(YELLOW)Application not running with pprof enabled$(NC)"
+
+watch: ## Watch for changes and auto-rebuild
+	@echo "$(GREEN)Watching for changes...$(NC)"
+	@if command -v air >/dev/null 2>&1; then \
+		air; \
+	else \
+		echo "$(YELLOW)air not installed. Install with: go install github.com/cosmtrek/air@latest$(NC)"; \
+		echo "$(YELLOW)Falling back to basic watch...$(NC)"; \
+		while true; do \
+			$(GOTEST) -v ./...; \
+			sleep 5; \
+		done; \
+	fi
+
+release: clean deps test-all build-linux ## Build release version
+	@echo "$(GREEN)Release build complete!$(NC)"
