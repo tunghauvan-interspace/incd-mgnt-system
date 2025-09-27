@@ -24,7 +24,7 @@ export interface ModalProps {
 
 // Table component types
 export interface TableColumn<T = Record<string, any>> {
-  key: keyof T
+  key: keyof T | string // Allow string for virtual columns
   label: string
   sortable?: boolean
   width?: string

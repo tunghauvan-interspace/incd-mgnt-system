@@ -13,7 +13,8 @@ import type { TableColumn } from '@/types/components'
 const selectedIncident = ref<Incident | null>(null)
 const showModal = ref(false)
 
-const { incidents, loading, error, loadIncidents, acknowledgeIncident, resolveIncident } = useIncidents()
+const { incidents, loading, error, loadIncidents, acknowledgeIncident, resolveIncident } =
+  useIncidents()
 
 // Table configuration
 const columns: TableColumn<Incident>[] = [
@@ -22,8 +23,8 @@ const columns: TableColumn<Incident>[] = [
   { key: 'severity', label: 'Severity', sortable: true, width: '120px', align: 'center' },
   { key: 'status', label: 'Status', sortable: true, width: '120px', align: 'center' },
   { key: 'created_at', label: 'Created', sortable: true, width: '180px' },
-  { key: 'duration', label: 'Duration', width: '120px' },
-  { key: 'actions', label: 'Actions', width: '200px', align: 'center' }
+  { key: 'duration', label: 'Duration', width: '120px' }, // Virtual column
+  { key: 'actions', label: 'Actions', width: '200px', align: 'center' } // Virtual column
 ]
 
 const showIncidentDetails = (incident: Incident) => {
@@ -71,11 +72,7 @@ onMounted(() => {
     <div class="page-header">
       <h2>Incidents</h2>
       <div class="actions">
-        <Button 
-          @click="loadIncidents" 
-          :loading="loading"
-          variant="primary"
-        >
+        <Button @click="loadIncidents" :loading="loading" variant="primary">
           {{ loading ? 'Loading...' : 'Refresh' }}
         </Button>
       </div>
@@ -97,37 +94,33 @@ onMounted(() => {
         >
           <!-- Custom ID column -->
           <template #cell-id="{ value }">
-            <code class="incident-id">{{ value.substring(0, 8) }}</code>
+            <code class="incident-id">{{ String(value || '').substring(0, 8) }}</code>
           </template>
-          
+
           <!-- Custom Severity column -->
           <template #cell-severity="{ value }">
-            <SeverityBadge :severity="value" size="sm" />
+            <SeverityBadge :severity="String(value || 'info')" size="sm" />
           </template>
-          
+
           <!-- Custom Status column -->
           <template #cell-status="{ value }">
-            <StatusBadge :status="value" size="sm" />
+            <StatusBadge :status="String(value || 'open')" size="sm" />
           </template>
-          
+
           <!-- Custom Created column -->
           <template #cell-created_at="{ value }">
-            {{ formatDate(value) }}
+            {{ formatDate(String(value || '')) }}
           </template>
-          
+
           <!-- Custom Duration column -->
           <template #cell-duration="{ row }">
             {{ calculateDuration(row.created_at, row.resolved_at) }}
           </template>
-          
+
           <!-- Custom Actions column -->
           <template #cell-actions="{ row }">
             <div class="actions-group">
-              <Button 
-                size="sm" 
-                variant="primary"
-                @click.stop="showIncidentDetails(row)"
-              >
+              <Button size="sm" variant="primary" @click.stop="showIncidentDetails(row)">
                 Details
               </Button>
               <Button
@@ -160,11 +153,11 @@ onMounted(() => {
     >
       <div v-if="selectedIncident" class="incident-details">
         <div class="detail-row">
-          <strong>ID:</strong> 
+          <strong>ID:</strong>
           <code class="incident-id">{{ selectedIncident.id }}</code>
         </div>
         <div class="detail-row">
-          <strong>Title:</strong> 
+          <strong>Title:</strong>
           {{ selectedIncident.title }}
         </div>
         <div class="detail-row">
@@ -175,33 +168,26 @@ onMounted(() => {
         </div>
         <div class="detail-row">
           <strong>Severity:</strong>
-          <SeverityBadge 
-            :severity="selectedIncident.severity" 
-            size="md" 
-            show-icon 
-          />
+          <SeverityBadge :severity="selectedIncident.severity" size="md" show-icon />
         </div>
         <div class="detail-row">
           <strong>Status:</strong>
-          <StatusBadge 
-            :status="selectedIncident.status" 
-            size="md" 
-          />
+          <StatusBadge :status="selectedIncident.status" size="md" />
         </div>
         <div class="detail-row">
-          <strong>Created:</strong> 
+          <strong>Created:</strong>
           {{ formatDate(selectedIncident.created_at) }}
         </div>
         <div class="detail-row" v-if="selectedIncident.acknowledged_at">
-          <strong>Acknowledged:</strong> 
+          <strong>Acknowledged:</strong>
           {{ formatDate(selectedIncident.acknowledged_at) }}
         </div>
         <div class="detail-row" v-if="selectedIncident.resolved_at">
-          <strong>Resolved:</strong> 
+          <strong>Resolved:</strong>
           {{ formatDate(selectedIncident.resolved_at) }}
         </div>
         <div class="detail-row" v-if="selectedIncident.assignee_id">
-          <strong>Assignee:</strong> 
+          <strong>Assignee:</strong>
           {{ selectedIncident.assignee_id }}
         </div>
         <div
@@ -236,9 +222,7 @@ onMounted(() => {
         >
           Resolve
         </Button>
-        <Button variant="secondary" @click="closeModal">
-          Close
-        </Button>
+        <Button variant="secondary" @click="closeModal"> Close </Button>
       </template>
     </Modal>
   </div>
@@ -246,120 +230,120 @@ onMounted(() => {
 
 <style scoped>
 .incidents {
-  padding: 20px 0;
+  padding: var(--spacing-lg) 0;
 }
 
 .page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
+  margin-bottom: var(--spacing-2xl);
 }
 
 .page-header h2 {
-  color: #2c3e50;
+  color: var(--color-text-primary);
   margin: 0;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
 }
 
 .incidents-container {
-  margin-top: 1rem;
+  margin-top: var(--spacing-base);
 }
 
 .error-message {
-  background: #ffeaea;
-  color: #e74c3c;
-  padding: 1rem;
-  border-radius: 4px;
-  margin-bottom: 1rem;
-  border: 1px solid #f8cecc;
-}
-
-.no-data {
-  text-align: center;
-  padding: 2rem;
-  color: #666;
+  background: var(--color-danger-light);
+  color: var(--color-danger);
+  padding: var(--spacing-base);
+  border-radius: var(--radius-base);
+  margin-bottom: var(--spacing-base);
+  border: 1px solid var(--color-danger);
 }
 
 .actions-group {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--spacing-sm);
   flex-wrap: wrap;
 }
 
-.btn-sm {
-  padding: 4px 8px;
-  font-size: 0.85rem;
+.incident-id {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  background: var(--color-gray-100);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
 }
 
 .incident-details {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: var(--spacing-base);
 }
 
 .detail-row {
   display: flex;
   align-items: flex-start;
-  gap: 0.5rem;
+  gap: var(--spacing-sm);
 }
 
 .detail-row strong {
   min-width: 100px;
   flex-shrink: 0;
+  font-weight: var(--font-weight-semibold);
 }
 
 .description {
-  margin: 0.5rem 0 0 0;
-  background: #f8f9fa;
-  padding: 0.75rem;
-  border-radius: 4px;
-  border-left: 3px solid #3498db;
+  margin: var(--spacing-sm) 0 0 0;
+  background: var(--color-bg-muted);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-base);
+  border-left: 3px solid var(--color-primary);
+  font-style: italic;
+  color: var(--color-text-secondary);
 }
 
 .labels-container {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: var(--spacing-sm);
 }
 
 .label-tag {
-  background: #e9ecef;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.85rem;
+  background: var(--color-gray-200);
+  color: var(--color-text-primary);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-base);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-family-mono);
 }
 
 @media (max-width: 768px) {
   .page-header {
     flex-direction: column;
-    gap: 1rem;
+    gap: var(--spacing-base);
     align-items: stretch;
   }
 
-  .table {
-    font-size: 0.85rem;
-  }
-
-  .table th,
-  .table td {
-    padding: 8px;
+  .page-header h2 {
+    font-size: var(--font-size-xl);
   }
 
   .actions-group {
     flex-direction: column;
   }
 
-  .btn-sm {
-    padding: 6px 10px;
-  }
-
   .detail-row {
     flex-direction: column;
-    gap: 0.25rem;
+    gap: var(--spacing-xs);
   }
 
   .detail-row strong {
     min-width: auto;
+  }
+
+  .incidents {
+    padding: var(--spacing-base) 0;
   }
 }
 </style>

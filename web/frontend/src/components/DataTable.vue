@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 
 export interface TableColumn<T = Record<string, any>> {
-  key: keyof T
+  key: keyof T | string
   label: string
   sortable?: boolean
   width?: string
@@ -15,7 +15,7 @@ export interface TableProps<T = Record<string, any>> {
   data: T[]
   loading?: boolean
   emptyMessage?: string
-  sortBy?: keyof T | null
+  sortBy?: keyof T | string | null
   sortOrder?: 'asc' | 'desc'
   hoverable?: boolean
   striped?: boolean
@@ -24,7 +24,7 @@ export interface TableProps<T = Record<string, any>> {
 }
 
 interface TableEmits<T = Record<string, any>> {
-  (e: 'sort', column: keyof T, order: 'asc' | 'desc'): void
+  (e: 'sort', column: keyof T | string, order: 'asc' | 'desc'): void
   (e: 'rowClick', row: T, index: number): void
 }
 
@@ -59,8 +59,14 @@ const sortedData = computed(() => {
   if (!internalSortBy.value) return props.data
 
   return [...props.data].sort((a, b) => {
-    const aVal = a[internalSortBy.value!]
-    const bVal = b[internalSortBy.value!]
+    // Only sort on actual properties, not virtual columns
+    const key = internalSortBy.value!
+    if (typeof key === 'string' && !(key in a)) {
+      return 0 // Don't sort virtual columns
+    }
+
+    const aVal = a[key as keyof T]
+    const bVal = b[key as keyof T]
 
     let comparison = 0
 
@@ -99,7 +105,13 @@ const getSortIcon = (column: TableColumn<T>) => {
 }
 
 const formatCellValue = (column: TableColumn<T>, row: T) => {
-  const value = row[column.key]
+  // Handle virtual columns that don't exist on the row
+  const key = column.key
+  if (typeof key === 'string' && !(key in row)) {
+    return '' // Virtual columns handled by slots
+  }
+
+  const value = row[key as keyof T]
   return column.formatter ? column.formatter(value, row) : String(value || '')
 }
 </script>
@@ -166,7 +178,11 @@ const formatCellValue = (column: TableColumn<T>, row: T) => {
               :name="`cell-${String(column.key)}`"
               :row="row"
               :column="column"
-              :value="row[column.key]"
+              :value="
+                typeof column.key === 'string' && !(column.key in row)
+                  ? undefined
+                  : row[column.key as keyof T]
+              "
               :index="index"
             >
               {{ formatCellValue(column, row) }}
