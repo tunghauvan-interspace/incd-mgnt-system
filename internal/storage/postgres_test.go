@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/lib/pq"
 	"github.com/google/uuid"
+	_ "github.com/lib/pq"
 	"github.com/tunghauvan-interspace/incd-mgnt-system/internal/config"
 	"github.com/tunghauvan-interspace/incd-mgnt-system/internal/models"
 )
@@ -16,7 +16,7 @@ import (
 // setupTestDB creates a test database connection for integration tests
 func setupTestDB(t *testing.T) (*PostgresStore, func()) {
 	t.Helper()
-	
+
 	// Use a test database URL or skip if not provided
 	dbURL := os.Getenv("TEST_DATABASE_URL")
 	if dbURL == "" {
@@ -39,7 +39,7 @@ func setupTestDB(t *testing.T) (*PostgresStore, func()) {
 	cleanup := func() {
 		// Clean up test data
 		store.db.Exec("DELETE FROM alerts")
-		store.db.Exec("DELETE FROM incidents") 
+		store.db.Exec("DELETE FROM incidents")
 		store.Close()
 	}
 
