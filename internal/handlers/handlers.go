@@ -231,33 +231,16 @@ func (h *Handler) writeErrorResponse(w http.ResponseWriter, message string, stat
 // writeSuccessResponse writes a structured success response
 func (h *Handler) writeSuccessResponse(w http.ResponseWriter, message string) {
 	w.Header().Set("Content-Type", "application/json")
-=======
-	h.logger.InfoWithRequest(r.Context(), "Received Alertmanager webhook")
-
-	var webhook services.AlertmanagerWebhook
-	if err := json.NewDecoder(r.Body).Decode(&webhook); err != nil {
-		h.logger.ErrorWithRequest(r.Context(), "Invalid webhook JSON", map[string]interface{}{
-			"error": err.Error(),
-		})
-		h.metricsService.RecordWebhookRequest("alertmanager", "error")
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
-		return
+	w.WriteHeader(http.StatusOK)
+	
+	response := map[string]interface{}{
+		"status":  "success",
+		"message": message,
 	}
-
-	if err := h.alertService.ProcessAlertmanagerWebhook(&webhook); err != nil {
-		h.logger.ErrorWithRequest(r.Context(), "Error processing alertmanager webhook", map[string]interface{}{
-			"error": err.Error(),
-		})
-		h.metricsService.RecordWebhookRequest("alertmanager", "error")
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
+	
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Printf("Failed to write success response: %v", err)
 	}
-
-	h.metricsService.RecordWebhookRequest("alertmanager", "success")
-	h.logger.InfoWithRequest(r.Context(), "Successfully processed Alertmanager webhook", map[string]interface{}{
-		"alerts_count": len(webhook.Alerts),
-		"status":       webhook.Status,
-	})
 }
 
 // handleIncidents handles incident-related requests with different methods and paths
