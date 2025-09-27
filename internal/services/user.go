@@ -38,14 +38,14 @@ func (s *UserService) Register(ctx context.Context, req *models.RegisterRequest)
 	// Check if username exists
 	if _, err := s.GetUserByUsername(ctx, req.Username); err == nil {
 		return nil, ErrUsernameExists
-	} else if !errors.Is(err, ErrUserNotFound) {
+	} else if err != ErrUserNotFound {
 		return nil, fmt.Errorf("failed to check username: %w", err)
 	}
 
 	// Check if email exists
 	if _, err := s.GetUserByEmail(ctx, req.Email); err == nil {
 		return nil, ErrEmailExists
-	} else if !errors.Is(err, ErrUserNotFound) {
+	} else if err != ErrUserNotFound {
 		return nil, fmt.Errorf("failed to check email: %w", err)
 	}
 
@@ -348,16 +348,29 @@ func (s *UserService) LogUserActivity(ctx context.Context, userID, action, resou
 // Helper methods
 
 func (s *UserService) getUserFromStorage(ctx context.Context, field, value string) (*models.User, error) {
+	var user *models.User
+	var err error
+	
 	switch field {
 	case "id":
-		return s.store.GetUser(value)
+		user, err = s.store.GetUser(value)
 	case "username":
-		return s.store.GetUserByUsername(value)
+		user, err = s.store.GetUserByUsername(value)
 	case "email":
-		return s.store.GetUserByEmail(value)
+		user, err = s.store.GetUserByEmail(value)
 	default:
 		return nil, ErrUserNotFound
 	}
+	
+	// Convert storage errors to service errors
+	if err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			return nil, ErrUserNotFound
+		}
+		return nil, err
+	}
+	
+	return user, nil
 }
 
 func (s *UserService) loadUserRoles(ctx context.Context, user *models.User) error {
