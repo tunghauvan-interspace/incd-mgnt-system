@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
@@ -575,4 +576,17 @@ func (s *PostgresStore) UpdateOnCallSchedule(schedule *models.OnCallSchedule) er
 
 func (s *PostgresStore) DeleteOnCallSchedule(id string) error {
 	return fmt.Errorf("on-call schedules not yet implemented in postgres store")
+}
+
+// HealthCheck tests the database connection
+func (s *PostgresStore) HealthCheck() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	
+	return s.db.PingContext(ctx)
+}
+
+// GetDBStats returns database connection statistics
+func (s *PostgresStore) GetDBStats() sql.DBStats {
+	return s.db.Stats()
 }

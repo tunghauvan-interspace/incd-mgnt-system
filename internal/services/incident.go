@@ -11,13 +11,15 @@ import (
 
 // IncidentService handles incident operations
 type IncidentService struct {
-	store storage.Store
+	store          storage.Store
+	metricsService *MetricsService
 }
 
 // NewIncidentService creates a new incident service
-func NewIncidentService(store storage.Store) *IncidentService {
+func NewIncidentService(store storage.Store, metricsService *MetricsService) *IncidentService {
 	return &IncidentService{
-		store: store,
+		store:          store,
+		metricsService: metricsService,
 	}
 }
 
@@ -35,9 +37,19 @@ func (s *IncidentService) CreateIncident(title, description string, severity mod
 		Labels:      make(map[string]string),
 	}
 
+	start := time.Now()
 	err := s.store.CreateIncident(incident)
+	if s.metricsService != nil {
+		s.metricsService.RecordDBQuery("CREATE", "incidents", time.Since(start))
+	}
+	
 	if err != nil {
 		return nil, fmt.Errorf("failed to create incident: %w", err)
+	}
+
+	// Record metrics
+	if s.metricsService != nil {
+		s.metricsService.RecordIncidentCreated(string(severity), string(incident.Status))
 	}
 
 	return incident, nil
@@ -148,4 +160,35 @@ func (s *IncidentService) CalculateMetrics() (*models.Metrics, error) {
 	}
 
 	return metrics, nil
+}
+
+// UpdatePrometheusMetrics updates Prometheus metrics with current incident data
+func (s *IncidentService) UpdatePrometheusMetrics() error {
+	if s.metricsService == nil {
+		return nil
+	}
+
+	start := time.Now()
+	metrics, err := s.CalculateMetrics()
+	s.metricsService.RecordDBQuery("SELECT", "incidents", time.Since(start))
+	
+	if err != nil {
+		return err
+	}
+
+	// Update MTTA and MTTR metrics
+	s.metricsService.UpdateMTTA(metrics.MTTA)
+	s.metricsService.UpdateMTTR(metrics.MTTR)
+
+	// Update incidents by status and severity
+	for status, count := range metrics.IncidentsByStatus {
+		for severity, severityCount := range metrics.IncidentsBySeverity {
+			// This gives a rough approximation - in a real system you'd want more granular data
+			proportion := float64(severityCount) / float64(metrics.TotalIncidents)
+			estimatedCount := float64(count) * proportion
+			s.metricsService.UpdateIncidentsByStatus(status, severity, estimatedCount)
+		}
+	}
+
+	return nil
 }
