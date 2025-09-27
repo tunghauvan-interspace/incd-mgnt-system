@@ -32,3 +32,6 @@ go.work.sum
 incident-management
 server
 main
+
+# Backup files
+backups/
