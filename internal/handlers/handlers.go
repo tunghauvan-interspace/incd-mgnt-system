@@ -6,8 +6,11 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/tunghauvan-interspace/incd-mgnt-system/internal/services"
+	"github.com/tunghauvan-interspace/incd-mgnt-system/internal/storage"
 )
 
 // Handler handles HTTP requests
@@ -15,6 +18,9 @@ type Handler struct {
 	incidentService     *services.IncidentService
 	alertService        *services.AlertService
 	notificationService *services.NotificationService
+	metricsService      *services.MetricsService
+	logger              *services.Logger
+	store               storage.Store
 }
 
 // NewHandler creates a new handler
@@ -22,11 +28,17 @@ func NewHandler(
 	incidentService *services.IncidentService,
 	alertService *services.AlertService,
 	notificationService *services.NotificationService,
+	metricsService *services.MetricsService,
+	logger *services.Logger,
+	store storage.Store,
 ) *Handler {
 	return &Handler{
 		incidentService:     incidentService,
 		alertService:        alertService,
 		notificationService: notificationService,
+		metricsService:      metricsService,
+		logger:              logger,
+		store:               store,
 	}
 }
 
@@ -37,7 +49,10 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/incidents/", h.handleIncidents)
 	mux.HandleFunc("/api/incidents", h.handleListIncidents)
 	mux.HandleFunc("/api/alerts", h.handleListAlerts)
-	mux.HandleFunc("/api/metrics", h.handleGetMetrics)
+	mux.HandleFunc("/api/metrics", h.handleGetMetrics) // JSON metrics (deprecated)
+
+	// Prometheus metrics endpoint
+	mux.Handle("/metrics", promhttp.Handler())
 
 	// Static files
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("web/static/"))))
@@ -47,8 +62,9 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/incidents", h.handleIncidentsPage)
 	mux.HandleFunc("/alerts", h.handleAlertsPage)
 
-	// Health check
+	// Health check endpoints
 	mux.HandleFunc("/health", h.handleHealth)
+	mux.HandleFunc("/ready", h.handleReady)
 }
 
 // handleAlertmanagerWebhook handles incoming webhooks from Alertmanager
@@ -58,17 +74,32 @@ func (h *Handler) handleAlertmanagerWebhook(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	h.logger.InfoWithRequest(r.Context(), "Received Alertmanager webhook")
+
 	var webhook services.AlertmanagerWebhook
 	if err := json.NewDecoder(r.Body).Decode(&webhook); err != nil {
+		h.logger.ErrorWithRequest(r.Context(), "Invalid webhook JSON", map[string]interface{}{
+			"error": err.Error(),
+		})
+		h.metricsService.RecordWebhookRequest("alertmanager", "error")
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
 
 	if err := h.alertService.ProcessAlertmanagerWebhook(&webhook); err != nil {
-		log.Printf("Error processing alertmanager webhook: %v", err)
+		h.logger.ErrorWithRequest(r.Context(), "Error processing alertmanager webhook", map[string]interface{}{
+			"error": err.Error(),
+		})
+		h.metricsService.RecordWebhookRequest("alertmanager", "error")
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
+
+	h.metricsService.RecordWebhookRequest("alertmanager", "success")
+	h.logger.InfoWithRequest(r.Context(), "Successfully processed Alertmanager webhook", map[string]interface{}{
+		"alerts_count": len(webhook.Alerts),
+		"status":       webhook.Status,
+	})
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
@@ -277,8 +308,67 @@ func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+
+	h.logger.DebugWithRequest(r.Context(), "Health check requested")
+	
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "healthy"})
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status": "healthy",
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	})
+}
+
+// handleReady handles readiness probe requests
+func (h *Handler) handleReady(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	h.logger.DebugWithRequest(r.Context(), "Readiness check requested")
+
+	// Check database connectivity
+	ready := true
+	checks := make(map[string]interface{})
+
+	// Test database connection
+	if pgStore, ok := h.store.(*storage.PostgresStore); ok {
+		if err := pgStore.HealthCheck(); err != nil {
+			ready = false
+			checks["database"] = map[string]interface{}{
+				"status": "unhealthy",
+				"error":  err.Error(),
+			}
+			h.logger.ErrorWithRequest(r.Context(), "Database health check failed", map[string]interface{}{
+				"error": err.Error(),
+			})
+		} else {
+			checks["database"] = map[string]interface{}{
+				"status": "healthy",
+			}
+		}
+	} else {
+		// Memory store is always ready
+		checks["database"] = map[string]interface{}{
+			"status": "healthy",
+			"type":   "memory",
+		}
+	}
+
+	status := "ready"
+	statusCode := http.StatusOK
+	if !ready {
+		status = "not_ready"
+		statusCode = http.StatusServiceUnavailable
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":    status,
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+		"checks":    checks,
+	})
 }
 
 // serveTemplate serves HTML templates

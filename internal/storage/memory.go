@@ -47,6 +47,9 @@ type Store interface {
 	CreateOnCallSchedule(schedule *models.OnCallSchedule) error
 	UpdateOnCallSchedule(schedule *models.OnCallSchedule) error
 	DeleteOnCallSchedule(id string) error
+
+	// Close closes the store connection
+	Close() error
 }
 
 // MemoryStore is an in-memory implementation of Store
@@ -332,5 +335,10 @@ func (s *MemoryStore) DeleteOnCallSchedule(id string) error {
 		return ErrNotFound
 	}
 	delete(s.onCallSchedules, id)
+	return nil
+}
+
+// Close closes the memory store (no-op for memory store)
+func (s *MemoryStore) Close() error {
 	return nil
 }
