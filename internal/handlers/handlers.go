@@ -15,7 +15,9 @@ import (
 	"github.com/tunghauvan-interspace/incd-mgnt-system/internal/ratelimit"
 	"github.com/tunghauvan-interspace/incd-mgnt-system/internal/retry"
 	"github.com/tunghauvan-interspace/incd-mgnt-system/internal/services"
+	"github.com/tunghauvan-interspace/incd-mgnt-system/internal/storage"
 	"github.com/tunghauvan-interspace/incd-mgnt-system/internal/validation"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // Handler handles HTTP requests
@@ -28,6 +30,9 @@ type Handler struct {
 	retryer              *retry.Retryer
 	rateLimitConfig      *ratelimit.RateLimitConfig
 	circuitBreaker       *circuitbreaker.CircuitBreaker
+	metricsService       *services.MetricsService
+	logger               *services.Logger
+	store                storage.Store
 }
 
 // NewHandler creates a new handler
@@ -35,6 +40,9 @@ func NewHandler(
 	incidentService *services.IncidentService,
 	alertService *services.AlertService,
 	notificationService *services.NotificationService,
+	metricsService *services.MetricsService,
+	logger *services.Logger,
+	store storage.Store,
 ) *Handler {
 	// Initialize reliability components
 	webhookValidator := validation.NewWebhookValidator()
@@ -69,6 +77,9 @@ func NewHandler(
 		retryer:            retryer,
 		rateLimitConfig:    rateLimitConfig,
 		circuitBreaker:     circuitBreaker,
+		metricsService:      metricsService,
+		logger:              logger,
+		store:               store,
 	}
 }
 
@@ -81,7 +92,10 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/incidents/", h.handleIncidents)
 	mux.HandleFunc("/api/incidents", h.handleListIncidents)
 	mux.HandleFunc("/api/alerts", h.handleListAlerts)
-	mux.HandleFunc("/api/metrics", h.handleGetMetrics)
+	mux.HandleFunc("/api/metrics", h.handleGetMetrics) // JSON metrics (deprecated)
+
+	// Prometheus metrics endpoint
+	mux.Handle("/metrics", promhttp.Handler())
 
 	// Static files
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("web/static/"))))
@@ -91,8 +105,9 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/incidents", h.handleIncidentsPage)
 	mux.HandleFunc("/alerts", h.handleAlertsPage)
 
-	// Health check
+	// Health check endpoints
 	mux.HandleFunc("/health", h.handleHealth)
+	mux.HandleFunc("/ready", h.handleReady)
 }
 
 // handleAlertmanagerWebhook handles incoming webhooks from Alertmanager with reliability improvements
@@ -105,11 +120,21 @@ func (h *Handler) handleAlertmanagerWebhook(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	h.logger.InfoWithRequest(ctx, "Received Alertmanager webhook")
+
+	// Validate HTTP method
+	if r.Method != http.MethodPost {
+		h.writeErrorResponse(w, "Method not allowed", http.StatusMethodNotAllowed)
+		h.metricsService.RecordWebhookRequest("alertmanager", "error")
+		return
+	}
+
 	// Read and validate request body
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Printf("Failed to read request body: %v", err)
 		h.writeErrorResponse(w, "Failed to read request body", http.StatusBadRequest)
+		h.metricsService.RecordWebhookRequest("alertmanager", "error")
 		return
 	}
 
@@ -117,12 +142,14 @@ func (h *Handler) handleAlertmanagerWebhook(w http.ResponseWriter, r *http.Reque
 	if len(body) > 1024*1024 { // 1MB limit
 		log.Printf("Request body too large: %d bytes", len(body))
 		h.writeErrorResponse(w, "Request body too large", http.StatusRequestEntityTooLarge)
+		h.metricsService.RecordWebhookRequest("alertmanager", "error")
 		return
 	}
 
 	// Check for empty body
 	if len(body) == 0 {
 		h.writeErrorResponse(w, "Empty request body", http.StatusBadRequest)
+		h.metricsService.RecordWebhookRequest("alertmanager", "error")
 		return
 	}
 
@@ -130,6 +157,7 @@ func (h *Handler) handleAlertmanagerWebhook(w http.ResponseWriter, r *http.Reque
 	if err := h.webhookValidator.ValidateAlertmanagerWebhook(body); err != nil {
 		log.Printf("Webhook validation failed: %v", err)
 		h.writeErrorResponse(w, fmt.Sprintf("Invalid webhook payload: %v", err), http.StatusBadRequest)
+		h.metricsService.RecordWebhookRequest("alertmanager", "error")
 		return
 	}
 
@@ -137,6 +165,7 @@ func (h *Handler) handleAlertmanagerWebhook(w http.ResponseWriter, r *http.Reque
 	if h.idempotencyManager.IsAlreadyProcessed(body) {
 		log.Printf("Duplicate webhook detected, returning cached response")
 		h.writeSuccessResponse(w, "Duplicate request processed successfully")
+		h.metricsService.RecordWebhookRequest("alertmanager", "success")
 		return
 	}
 
@@ -145,6 +174,7 @@ func (h *Handler) handleAlertmanagerWebhook(w http.ResponseWriter, r *http.Reque
 	if err := json.Unmarshal(body, &webhook); err != nil {
 		log.Printf("Failed to unmarshal webhook: %v", err)
 		h.writeErrorResponse(w, "Invalid JSON structure", http.StatusBadRequest)
+		h.metricsService.RecordWebhookRequest("alertmanager", "error")
 		return
 	}
 
@@ -156,6 +186,7 @@ func (h *Handler) handleAlertmanagerWebhook(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		log.Printf("Failed to process webhook after retries: %v", err)
 		h.writeErrorResponse(w, "Failed to process webhook", http.StatusInternalServerError)
+		h.metricsService.RecordWebhookRequest("alertmanager", "error")
 		return
 	}
 
@@ -167,6 +198,11 @@ func (h *Handler) handleAlertmanagerWebhook(w http.ResponseWriter, r *http.Reque
 
 	// Return success response
 	h.writeSuccessResponse(w, "Webhook processed successfully")
+	h.metricsService.RecordWebhookRequest("alertmanager", "success")
+	h.logger.InfoWithRequest(ctx, "Successfully processed Alertmanager webhook", map[string]interface{}{
+		"alerts_count": len(webhook.Alerts),
+		"status":       webhook.Status,
+	})
 }
 
 // processWebhookWithCircuitBreaker processes webhook with circuit breaker protection
@@ -195,16 +231,33 @@ func (h *Handler) writeErrorResponse(w http.ResponseWriter, message string, stat
 // writeSuccessResponse writes a structured success response
 func (h *Handler) writeSuccessResponse(w http.ResponseWriter, message string) {
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	
-	response := map[string]interface{}{
-		"status":  "success",
-		"message": message,
+=======
+	h.logger.InfoWithRequest(r.Context(), "Received Alertmanager webhook")
+
+	var webhook services.AlertmanagerWebhook
+	if err := json.NewDecoder(r.Body).Decode(&webhook); err != nil {
+		h.logger.ErrorWithRequest(r.Context(), "Invalid webhook JSON", map[string]interface{}{
+			"error": err.Error(),
+		})
+		h.metricsService.RecordWebhookRequest("alertmanager", "error")
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
 	}
-	
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		log.Printf("Failed to write success response: %v", err)
+
+	if err := h.alertService.ProcessAlertmanagerWebhook(&webhook); err != nil {
+		h.logger.ErrorWithRequest(r.Context(), "Error processing alertmanager webhook", map[string]interface{}{
+			"error": err.Error(),
+		})
+		h.metricsService.RecordWebhookRequest("alertmanager", "error")
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
 	}
+
+	h.metricsService.RecordWebhookRequest("alertmanager", "success")
+	h.logger.InfoWithRequest(r.Context(), "Successfully processed Alertmanager webhook", map[string]interface{}{
+		"alerts_count": len(webhook.Alerts),
+		"status":       webhook.Status,
+	})
 }
 
 // handleIncidents handles incident-related requests with different methods and paths
@@ -414,8 +467,67 @@ func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+
+	h.logger.DebugWithRequest(r.Context(), "Health check requested")
+	
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "healthy"})
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status": "healthy",
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	})
+}
+
+// handleReady handles readiness probe requests
+func (h *Handler) handleReady(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	h.logger.DebugWithRequest(r.Context(), "Readiness check requested")
+
+	// Check database connectivity
+	ready := true
+	checks := make(map[string]interface{})
+
+	// Test database connection
+	if pgStore, ok := h.store.(*storage.PostgresStore); ok {
+		if err := pgStore.HealthCheck(); err != nil {
+			ready = false
+			checks["database"] = map[string]interface{}{
+				"status": "unhealthy",
+				"error":  err.Error(),
+			}
+			h.logger.ErrorWithRequest(r.Context(), "Database health check failed", map[string]interface{}{
+				"error": err.Error(),
+			})
+		} else {
+			checks["database"] = map[string]interface{}{
+				"status": "healthy",
+			}
+		}
+	} else {
+		// Memory store is always ready
+		checks["database"] = map[string]interface{}{
+			"status": "healthy",
+			"type":   "memory",
+		}
+	}
+
+	status := "ready"
+	statusCode := http.StatusOK
+	if !ready {
+		status = "not_ready"
+		statusCode = http.StatusServiceUnavailable
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":    status,
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+		"checks":    checks,
+	})
 }
 
 // sendNotificationWithCircuitBreaker sends notifications with circuit breaker protection

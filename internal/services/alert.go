@@ -14,13 +14,15 @@ import (
 type AlertService struct {
 	store           storage.Store
 	incidentService *IncidentService
+	metricsService  *MetricsService
 }
 
 // NewAlertService creates a new alert service
-func NewAlertService(store storage.Store, incidentService *IncidentService) *AlertService {
+func NewAlertService(store storage.Store, incidentService *IncidentService, metricsService *MetricsService) *AlertService {
 	return &AlertService{
 		store:           store,
 		incidentService: incidentService,
+		metricsService:  metricsService,
 	}
 }
 
