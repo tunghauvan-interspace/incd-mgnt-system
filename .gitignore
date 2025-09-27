@@ -35,3 +35,8 @@ main
 
 # Backup files
 backups/
+
+# Node.js dependencies for frontend
+web/frontend/node_modules/
+web/frontend/.vite-cache/
+web/frontend/dist/
