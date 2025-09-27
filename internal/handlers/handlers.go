@@ -97,9 +97,12 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	// Prometheus metrics endpoint
 	mux.Handle("/metrics", promhttp.Handler())
 
-	// Static files (CSS, JS, images)
+	// Static files (CSS, JS, images, fonts, and other assets)
 	mux.Handle("/css/", http.StripPrefix("/", http.FileServer(http.Dir("web/static/"))))
 	mux.Handle("/js/", http.StripPrefix("/", http.FileServer(http.Dir("web/static/"))))
+	mux.Handle("/images/", http.StripPrefix("/", http.FileServer(http.Dir("web/static/"))))
+	mux.Handle("/fonts/", http.StripPrefix("/", http.FileServer(http.Dir("web/static/"))))
+	mux.Handle("/assets/", http.StripPrefix("/", http.FileServer(http.Dir("web/static/"))))
 	
 	// SPA routes - serve Vue.js application for all non-API routes
 	mux.HandleFunc("/", h.handleSPA)

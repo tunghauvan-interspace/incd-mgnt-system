@@ -220,7 +220,7 @@ test-postgres: ## Run PostgreSQL tests
 		docker compose down postgres; \
 	fi
 
-docker-run: docker-build ## Run Docker container
+docker-run: build-docker ## Run Docker container
 	@echo "$(GREEN)Running Docker container...$(NC)"
 	docker run -p 8080:8080 $(BINARY_NAME)
 
