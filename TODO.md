@@ -48,7 +48,44 @@ This document outlines the prioritized tasks for developing and enhancing the In
 - [ ] Implement secure credential management (Vault integration)
 - [ ] Add configuration hot-reloading capability
 
-## Phase 1 - Core Incident Management (Weeks 3-6)
+## Phase 1.5 - Frontend Modernization (Weeks 2.5-4)
+
+### Web Folder Restructuring
+- [ ] Migrate from vanilla HTML/CSS/JS to Vue.js + TypeScript framework
+- [ ] Create `web/frontend/` directory structure for Vue.js application
+- [ ] Setup Vue.js project with Vite build tool, TypeScript, Vue Router, and Pinia
+- [ ] Install necessary dependencies (Axios for API calls, Chart.js for visualizations)
+- [ ] Configure development environment and build scripts
+
+### Component Architecture
+- [ ] Design Vue 3 component structure with Composition API
+- [ ] Create shared components (Navbar, Button, Modal, Table, StatusBadge, SeverityBadge)
+- [ ] Implement responsive design system with CSS variables and utilities
+- [ ] Setup TypeScript interfaces for API responses and component props
+- [ ] Create composables for API interactions (useIncidents, useAlerts, useMetrics)
+
+### Page Migration
+- [ ] Convert dashboard.html to Vue Dashboard component with reactive charts
+- [ ] Convert incidents.html to Vue Incidents page with advanced table and modal
+- [ ] Convert alerts.html to Vue Alerts page with filtering capabilities
+- [ ] Implement Vue Router for SPA navigation between pages
+- [ ] Add loading states, error handling, and real-time updates
+
+### Build Integration
+- [ ] Configure Vite build process to output to `web/static/` directory
+- [ ] Update Dockerfile to build Vue.js application during container build
+- [ ] Modify Go backend to serve Vue.js SPA instead of static HTML templates
+- [ ] Implement proper routing fallback for client-side routing
+- [ ] Test production build and deployment process
+
+### Testing & Optimization
+- [ ] Add Vue component unit tests with Vitest
+- [ ] Implement end-to-end testing for migrated pages
+- [ ] Optimize bundle size and loading performance
+- [ ] Ensure mobile responsiveness and cross-browser compatibility
+- [ ] Validate all existing functionality works in new Vue.js frontend
+
+## Phase 1 - Core Incident Management (Weeks 4-7)
 
 ### User Management & Authentication
 - [ ] Design user and role models with database schema
