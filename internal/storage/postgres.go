@@ -791,105 +791,19 @@ func (s *PostgresStore) CountAlerts(ctx context.Context, filter AlertFilter) (in
 
 // Old interface backward compatibility methods for alerts
 
+// CreateAlert provides backward compatibility for the old Store interface
 func (s *PostgresStore) CreateAlert(alert *models.Alert) error {
-	ctx := context.Background()
-
-	labelsJSON, err := json.Marshal(alert.Labels)
-	if err != nil {
-		return fmt.Errorf("failed to marshal labels: %w", err)
-	}
-
-	annotationsJSON, err := json.Marshal(alert.Annotations)
-	if err != nil {
-		return fmt.Errorf("failed to marshal annotations: %w", err)
-	}
-
-	query := `
-		INSERT INTO alerts (id, fingerprint, status, starts_at, ends_at, labels, annotations, incident_id, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-	`
-
-	// Handle empty incident_id as NULL
-	var incidentID interface{}
-	if alert.IncidentID == "" {
-		incidentID = nil
-	} else {
-		incidentID = alert.IncidentID
-	}
-
-	_, err = s.db.ExecContext(ctx, query,
-		alert.ID, alert.Fingerprint, alert.Status, alert.StartsAt, alert.EndsAt,
-		labelsJSON, annotationsJSON, incidentID, alert.CreatedAt,
-	)
-
-	return err
+	return s.CreateAlertWithContext(context.Background(), alert)
 }
 
+// UpdateAlert provides backward compatibility for the old Store interface
 func (s *PostgresStore) UpdateAlert(alert *models.Alert) error {
-	ctx := context.Background()
-
-	labelsJSON, err := json.Marshal(alert.Labels)
-	if err != nil {
-		return fmt.Errorf("failed to marshal labels: %w", err)
-	}
-
-	annotationsJSON, err := json.Marshal(alert.Annotations)
-	if err != nil {
-		return fmt.Errorf("failed to marshal annotations: %w", err)
-	}
-
-	query := `
-		UPDATE alerts 
-		SET fingerprint = $2, status = $3, starts_at = $4, ends_at = $5,
-		    labels = $6, annotations = $7, incident_id = $8
-		WHERE id = $1
-	`
-
-	// Handle empty incident_id as NULL
-	var incidentID interface{}
-	if alert.IncidentID == "" {
-		incidentID = nil
-	} else {
-		incidentID = alert.IncidentID
-	}
-
-	result, err := s.db.ExecContext(ctx, query,
-		alert.ID, alert.Fingerprint, alert.Status, alert.StartsAt, alert.EndsAt,
-		labelsJSON, annotationsJSON, incidentID,
-	)
-	if err != nil {
-		return err
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rowsAffected == 0 {
-		return ErrNotFound
-	}
-
-	return nil
+	return s.UpdateAlertWithContext(context.Background(), alert)
 }
 
+// DeleteAlert provides backward compatibility for the old Store interface
 func (s *PostgresStore) DeleteAlert(id string) error {
-	ctx := context.Background()
-
-	query := `DELETE FROM alerts WHERE id = $1`
-	result, err := s.db.ExecContext(ctx, query, id)
-	if err != nil {
-		return err
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rowsAffected == 0 {
-		return ErrNotFound
-	}
-
-	return nil
+	return s.DeleteAlertWithContext(context.Background(), id)
 }
 
 // Placeholder implementations for other entity types (to maintain interface compatibility)
