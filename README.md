@@ -31,13 +31,32 @@ An open-source, self-hosted incident management platform built for Prometheus an
 
 3. **Start the services:**
    ```bash
-   docker-compose up -d
+   # For development (includes Vue.js frontend dev server)
+   docker-compose --profile development up -d
+   
+   # For production
+   docker-compose --profile production up -d
    ```
 
-4. **Access the dashboard:**
-   - Incident Management System: http://localhost:8080
-   - Prometheus: http://localhost:9090
-   - Alertmanager: http://localhost:9093
+4. **Access the services:**
+   - **Vue.js Frontend** (Development): http://localhost:5173  
+   - **Go Backend API**: http://localhost:8080
+   - **Prometheus**: http://localhost:9090
+   - **Alertmanager**: http://localhost:9093
+
+### Complete Setup Guide
+
+For detailed setup instructions, troubleshooting, and production deployment guidance, see:
+
+📖 **[Complete Setup Guide](SETUP_GUIDE.md)**
+
+This guide covers:
+- Development environment setup
+- Production deployment strategies  
+- Configuration options
+- Frontend build process
+- Docker service profiles
+- Troubleshooting common issues
 
 ### Manual Installation
 

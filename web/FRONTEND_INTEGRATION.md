@@ -1,33 +1,159 @@
-# Vue.js Frontend Integration
+# Vue.js Frontend Integration Guide
 
-This document explains how the Vue.js frontend integrates with the Go backend.
+This document provides detailed technical information about the Vue.js frontend integration with the Go backend.
+
+## Architecture Overview
+
+The frontend uses a modern Vue.js 3 + TypeScript stack with Vite for development and building. The architecture follows these principles:
+
+- **Separation of Concerns**: Frontend and backend are decoupled
+- **Development Efficiency**: Hot reload and fast builds with Vite
+- **Type Safety**: Full TypeScript coverage for better code quality
+- **Production Ready**: Optimized builds with code splitting and asset optimization
+
+## Project Structure
+
+```
+web/frontend/
+├── src/
+│   ├── components/         # Reusable Vue components
+│   │   ├── Navbar.vue     # Main navigation component
+│   │   ├── Modal.vue      # Reusable modal dialog
+│   │   └── DoughnutChart.vue  # Chart.js integration
+│   ├── views/             # Page-level components (routes)
+│   │   ├── Dashboard.vue  # Main dashboard with metrics
+│   │   ├── Incidents.vue  # Incident management interface
+│   │   └── Alerts.vue     # Alert viewing interface
+│   ├── services/          # API integration layer
+│   │   └── api.ts         # Axios-based API client
+│   ├── types/             # TypeScript definitions
+│   │   └── api.ts         # API response type definitions  
+│   ├── utils/             # Utility functions
+│   │   └── format.ts      # Date/time formatting helpers
+│   ├── assets/            # Global styles and assets
+│   │   └── main.css       # Global CSS with component styles
+│   ├── router/            # Vue Router configuration
+│   │   └── index.ts       # Route definitions for SPA
+│   ├── App.vue            # Root component
+│   └── main.ts            # Application entry point
+├── dist/                  # Production build output (ignored by git)
+├── package.json           # Dependencies and scripts
+├── vite.config.ts         # Vite build configuration
+├── tsconfig.json          # TypeScript configuration
+└── .eslintrc.cjs          # ESLint configuration
+```
 
 ## Build Process
 
 The Vue.js application is built using Vite and outputs to the `web/frontend/dist/` directory. For production deployment, these files should be copied to the appropriate location for the Go backend to serve.
 
-### Development
+## Development Workflow
+
+### Local Development Setup
+
+1. **Start the Go backend** (required for API calls):
+   ```bash
+   # Option A: Using Docker Compose
+   docker-compose --profile development up -d backend postgres
+
+   # Option B: Manual Go development
+   go run cmd/server/main.go
+   ```
+
+2. **Start the Vue.js development server**:
+   ```bash
+   cd web/frontend
+   npm install
+   npm run dev
+   ```
+
+3. **Access the application**:
+   - Frontend: http://localhost:5173 (with hot reload)
+   - Backend API: http://localhost:8080
+
+### Development Features
+
+- **Hot Module Replacement (HMR)**: Instant updates during development
+- **API Proxy**: Automatic proxying of `/api/*` requests to Go backend
+- **TypeScript Support**: Full type checking and IntelliSense
+- **ESLint Integration**: Code quality and consistency checking
+- **Source Maps**: Debugging support in browser dev tools
+
+## Production Build Process
+
+### Building for Production
 
 ```bash
 cd web/frontend
-npm run dev
+npm install           # Install dependencies
+npm run type-check    # Verify TypeScript compilation
+npm run build        # Create production build
 ```
 
-The development server runs on http://localhost:5173 with API proxy to the Go backend on port 8080.
+### Build Output
 
-### Production Build
+The production build creates optimized assets in `web/frontend/dist/`:
 
-```bash
-cd web/frontend  
-npm run build
+```
+dist/
+├── index.html              # SPA entry point
+├── css/
+│   ├── index-[hash].css   # Main application styles
+│   ├── Incidents-[hash].css  # Component-specific styles
+│   └── ...                # Other component styles
+└── js/
+    ├── index-[hash].js    # Main application bundle
+    ├── Incidents-[hash].js   # Route-based code splitting
+    └── ...                # Other component chunks
 ```
 
-This generates optimized static assets in `web/frontend/dist/`:
-- `index.html` - Single page application entry point
-- `css/` - Stylesheet bundles  
-- `js/` - JavaScript bundles
+**Key Features:**
+- **Code Splitting**: Automatic route-based and component-based splitting
+- **Asset Hashing**: Cache-busting with content-based hashes
+- **Minification**: JavaScript and CSS minification for smaller bundles
+- **Tree Shaking**: Unused code elimination
+- **Source Maps**: Available for production debugging (optional)
 
-**Note**: The build files are not committed to git. In production, copy the contents of `web/frontend/dist/` to your web server's static file directory.
+### Build Configuration
+
+The Vite configuration (`vite.config.ts`) includes:
+
+```typescript
+export default defineConfig({
+  // Development server configuration
+  server: {
+    port: 5173,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8080',  // Go backend
+        changeOrigin: true,
+      }
+    }
+  },
+  
+  // Production build configuration  
+  build: {
+    outDir: 'dist',           // Build output directory
+    emptyOutDir: true,        // Clean directory before build
+    rollupOptions: {
+      output: {
+        // Organize assets by type with content hashing
+        entryFileNames: 'js/[name]-[hash].js',
+        chunkFileNames: 'js/[name]-[hash].js',
+        assetFileNames: (info) => {
+          // CSS files go to css/ directory
+          if (/\.css$/i.test(info.name || '')) {
+            return 'css/[name]-[hash][extname]'
+          }
+          return '[name]-[hash][extname]'
+        }
+      }
+    }
+  }
+})
+```
+
+**Note**: Build artifacts are excluded from git to maintain clean version control.
 
 ## Go Backend Integration
 
