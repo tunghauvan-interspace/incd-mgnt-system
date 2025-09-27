@@ -97,13 +97,12 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	// Prometheus metrics endpoint
 	mux.Handle("/metrics", promhttp.Handler())
 
-	// Static files
-	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("web/static/"))))
+	// Static files (CSS, JS, images)
+	mux.Handle("/css/", http.StripPrefix("/", http.FileServer(http.Dir("web/static/"))))
+	mux.Handle("/js/", http.StripPrefix("/", http.FileServer(http.Dir("web/static/"))))
 	
-	// Dashboard
-	mux.HandleFunc("/", h.handleDashboard)
-	mux.HandleFunc("/incidents", h.handleIncidentsPage)
-	mux.HandleFunc("/alerts", h.handleAlertsPage)
+	// SPA routes - serve Vue.js application for all non-API routes
+	mux.HandleFunc("/", h.handleSPA)
 
 	// Health check endpoints
 	mux.HandleFunc("/health", h.handleHealth)
@@ -276,7 +275,7 @@ func (h *Handler) handleIncidents(w http.ResponseWriter, r *http.Request) {
 	} else if len(pathParts) == 2 {
 		// /api/incidents/{id}/action
 		action := pathParts[1]
-		if r.Method == http.MethodPost {
+		if r.Method == http.MethodPut {
 			switch action {
 			case "acknowledge":
 				h.handleAcknowledgeIncident(w, r, incidentID)
@@ -412,37 +411,24 @@ func (h *Handler) handleGetMetrics(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(metrics)
 }
 
-// handleDashboard serves the main dashboard page
-func (h *Handler) handleDashboard(w http.ResponseWriter, r *http.Request) {
-	log.Printf("Dashboard handler called with method: %s, path: %s", r.Method, r.URL.Path)
-	
-	if r.URL.Path != "/" {
+// handleSPA serves the Vue.js Single Page Application
+func (h *Handler) handleSPA(w http.ResponseWriter, r *http.Request) {
+	// Check if it's an API route
+	if strings.HasPrefix(r.URL.Path, "/api/") {
 		http.NotFound(w, r)
 		return
 	}
+	
+	// Only serve GET requests for the SPA
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	h.serveTemplate(w, r, "dashboard.html")
-}
-
-// handleIncidentsPage serves the incidents page
-func (h *Handler) handleIncidentsPage(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	h.serveTemplate(w, r, "incidents.html")
-}
-
-// handleAlertsPage serves the alerts page
-func (h *Handler) handleAlertsPage(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	h.serveTemplate(w, r, "alerts.html")
+	
+	// Serve index.html for all frontend routes
+	indexPath := filepath.Join("web/static", "index.html")
+	w.Header().Set("Content-Type", "text/html")
+	http.ServeFile(w, r, indexPath)
 }
 
 // handleHealth handles health check requests
@@ -568,10 +554,3 @@ func (h *Handler) sendNotificationWithCircuitBreaker(notificationFunc func() err
 	return h.circuitBreaker.Call(notificationFunc)
 }
 
-// serveTemplate serves HTML templates
-func (h *Handler) serveTemplate(w http.ResponseWriter, r *http.Request, templateName string) {
-	templatePath := filepath.Join("web/templates", templateName)
-	
-	w.Header().Set("Content-Type", "text/html")
-	http.ServeFile(w, r, templatePath)
-}
