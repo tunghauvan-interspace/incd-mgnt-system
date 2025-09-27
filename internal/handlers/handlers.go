@@ -12,6 +12,7 @@ import (
 
 	"github.com/tunghauvan-interspace/incd-mgnt-system/internal/circuitbreaker"
 	"github.com/tunghauvan-interspace/incd-mgnt-system/internal/idempotency"
+	"github.com/tunghauvan-interspace/incd-mgnt-system/internal/middleware"
 	"github.com/tunghauvan-interspace/incd-mgnt-system/internal/ratelimit"
 	"github.com/tunghauvan-interspace/incd-mgnt-system/internal/retry"
 	"github.com/tunghauvan-interspace/incd-mgnt-system/internal/services"
@@ -33,6 +34,9 @@ type Handler struct {
 	metricsService       *services.MetricsService
 	logger               *services.Logger
 	store                storage.Store
+	userService          *services.UserService
+	authService          *services.AuthService
+	authHandler          *AuthHandler
 }
 
 // NewHandler creates a new handler
@@ -43,6 +47,8 @@ func NewHandler(
 	metricsService *services.MetricsService,
 	logger *services.Logger,
 	store storage.Store,
+	userService *services.UserService,
+	authService *services.AuthService,
 ) *Handler {
 	// Initialize reliability components
 	webhookValidator := validation.NewWebhookValidator()
@@ -68,6 +74,9 @@ func NewHandler(
 	}
 	circuitBreaker := circuitbreaker.NewCircuitBreaker("notification-service", cbConfig)
 	
+	// Create auth handler
+	authHandler := NewAuthHandler(userService, authService, logger)
+	
 	return &Handler{
 		incidentService:     incidentService,
 		alertService:        alertService,
@@ -80,21 +89,36 @@ func NewHandler(
 		metricsService:      metricsService,
 		logger:              logger,
 		store:               store,
+		userService:         userService,
+		authService:         authService,
+		authHandler:         authHandler,
 	}
 }
 
 // RegisterRoutes registers all HTTP routes
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
+	// Authentication routes (public)
+	mux.HandleFunc("/api/auth/register", h.authHandler.Register)
+	mux.HandleFunc("/api/auth/login", h.authHandler.Login)
+	mux.HandleFunc("/api/auth/refresh", h.authHandler.RefreshToken)
+	
+	// Protected authentication routes
+	mux.HandleFunc("/api/auth/logout", middleware.AuthMiddleware(h.authService)(http.HandlerFunc(h.authHandler.Logout)).ServeHTTP)
+	mux.HandleFunc("/api/auth/profile", middleware.AuthMiddleware(h.authService)(http.HandlerFunc(h.authHandler.GetProfile)).ServeHTTP)
+	mux.HandleFunc("/api/auth/profile/update", middleware.AuthMiddleware(h.authService)(http.HandlerFunc(h.authHandler.UpdateProfile)).ServeHTTP)
+	mux.HandleFunc("/api/auth/password/change", middleware.AuthMiddleware(h.authService)(http.HandlerFunc(h.authHandler.ChangePassword)).ServeHTTP)
+
 	// API routes with rate limiting
 	webhookHandler := ratelimit.WebhookRateLimitWrapper(h.rateLimitConfig, h.handleAlertmanagerWebhook)
 	mux.HandleFunc("/api/webhooks/alertmanager", webhookHandler)
 	
-	mux.HandleFunc("/api/incidents/", h.handleIncidents)
-	mux.HandleFunc("/api/incidents", h.handleListIncidents)
-	mux.HandleFunc("/api/alerts", h.handleListAlerts)
-	mux.HandleFunc("/api/metrics", h.handleGetMetrics) // JSON metrics (deprecated)
+	// Protected API routes - require authentication
+	mux.HandleFunc("/api/incidents/", middleware.AuthMiddleware(h.authService)(http.HandlerFunc(h.handleIncidents)).ServeHTTP)
+	mux.HandleFunc("/api/incidents", middleware.AuthMiddleware(h.authService)(http.HandlerFunc(h.handleListIncidents)).ServeHTTP)
+	mux.HandleFunc("/api/alerts", middleware.AuthMiddleware(h.authService)(http.HandlerFunc(h.handleListAlerts)).ServeHTTP)
+	mux.HandleFunc("/api/metrics", middleware.OptionalAuthMiddleware(h.authService)(http.HandlerFunc(h.handleGetMetrics)).ServeHTTP) // JSON metrics (deprecated)
 
-	// Prometheus metrics endpoint
+	// Prometheus metrics endpoint (public for monitoring)
 	mux.Handle("/metrics", promhttp.Handler())
 
 	// Static files (CSS, JS, images, fonts, and other assets)
@@ -107,10 +131,10 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	// SPA routes - serve Vue.js application for all non-API routes
 	mux.HandleFunc("/", h.handleSPA)
 
-	// Health check endpoints
+	// Health check endpoints (public)
 	mux.HandleFunc("/health", h.handleHealth)
 	mux.HandleFunc("/ready", h.handleReady)
-	mux.HandleFunc("/db/stats", h.handleDBStats)
+	mux.HandleFunc("/db/stats", middleware.RequireRole(h.authService, "admin")(http.HandlerFunc(h.handleDBStats)).ServeHTTP)
 }
 
 // handleAlertmanagerWebhook handles incoming webhooks from Alertmanager with reliability improvements
