@@ -35,3 +35,13 @@ main
 
 # Backup files
 backups/
+
+# Node.js dependencies for frontend
+web/frontend/node_modules/
+web/frontend/.vite-cache/
+web/frontend/dist/
+
+# Vue.js build artifacts (prevent committing build files)
+web/static/index.html
+web/static/css/*-*.css
+web/static/js/*-*.js
