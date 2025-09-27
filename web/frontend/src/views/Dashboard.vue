@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { metricsAPI } from '@/services/api'
 import { formatDuration } from '@/utils/format'
+import DoughnutChart from '@/components/DoughnutChart.vue'
 import type { Metrics } from '@/types/api'
 
 const metrics = ref<Metrics | null>(null)
@@ -73,11 +74,22 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- TODO: Add charts for incidents by status and severity -->
-    <div v-if="metrics" class="charts-section">
-      <div class="card">
-        <h3>Charts (Coming Soon)</h3>
-        <p>Chart.js integration will be added in the next iteration</p>
+    <!-- Charts section -->
+    <div v-if="metrics && !loading" class="charts-section">
+      <div class="charts-grid">
+        <div class="card">
+          <DoughnutChart 
+            :data="metrics.incidents_by_status || {}"
+            title="Incidents by Status"
+          />
+        </div>
+        
+        <div class="card">
+          <DoughnutChart 
+            :data="metrics.incidents_by_severity || {}"
+            title="Incidents by Severity"
+          />
+        </div>
       </div>
     </div>
   </div>
@@ -142,6 +154,12 @@ onMounted(() => {
   margin-top: 2rem;
 }
 
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 2rem;
+}
+
 .error-message {
   background: #ffeaea;
   color: #e74c3c;
@@ -160,6 +178,11 @@ onMounted(() => {
   
   .metrics-grid {
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+  
+  .charts-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
   }
   
   .metric-value {
