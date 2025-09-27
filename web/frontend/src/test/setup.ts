@@ -1,5 +1,5 @@
 import { vi } from 'vitest'
-import type { Config } from '@vue/test-utils'
+import type { config } from '@vue/test-utils'
 
 // Mock window.matchMedia
 Object.defineProperty(window, 'matchMedia', {
@@ -36,7 +36,7 @@ Object.defineProperty(window, 'getComputedStyle', {
 })
 
 // Mock Chart.js and canvas context
-const mockCanvasContext = {
+const mockCanvasContext: any = {
   fillRect: vi.fn(),
   clearRect: vi.fn(),
   getImageData: vi.fn(() => ({
@@ -66,7 +66,7 @@ Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
 })
 
 // Global test configuration for Vue Test Utils
-const config: Config = {
+const globalConfig: typeof config = {
   global: {
     stubs: {
       // Stub Chart.js components as they require canvas
@@ -78,4 +78,4 @@ const config: Config = {
   },
 }
 
-export { config }
+export { globalConfig as config }
