@@ -20,7 +20,7 @@ func TestRepositoryPattern(t *testing.T) {
 	// Create repository wrapper around postgres store structure
 	// Note: For testing, we'll test the interface compliance and filtering logic
 	// The actual database operations are tested in postgres_test.go with real DB
-	
+
 	t.Run("IncidentFilter", func(t *testing.T) {
 		// Test incident filter structure
 		filter := IncidentFilter{
@@ -60,15 +60,12 @@ func TestRepositoryPattern(t *testing.T) {
 	})
 
 	t.Run("RepositoryInterfaceCompliance", func(t *testing.T) {
-		// Create a RepositoryAdapter instance for testing interface compliance
-		// This tests that our RepositoryAdapter properly implements Repository
+		// Test that our IncidentRepositoryImpl properly implements IncidentRepository
 		
 		// Note: We can't actually test database operations without a real DB connection
 		// But we can test that the types and interfaces are correctly defined
 		
-		var _ IncidentRepository = &RepositoryAdapter{}
-		var _ AlertRepository = &RepositoryAdapter{}  
-		var _ Repository = &RepositoryAdapter{}
+		var _ IncidentRepository = &IncidentRepositoryImpl{}
 	})
 }
 
@@ -127,7 +124,7 @@ func TestMemoryStoreBasicOperations(t *testing.T) {
 	incident.Status = models.IncidentStatusAcknowledged
 	ackTime := time.Now()
 	incident.AckedAt = &ackTime
-	
+
 	err = store.UpdateIncident(incident)
 	if err != nil {
 		t.Fatalf("Failed to update incident: %v", err)
@@ -208,7 +205,7 @@ func TestAlertOperations(t *testing.T) {
 	alert.Status = "resolved"
 	endTime := time.Now()
 	alert.EndsAt = endTime
-	
+
 	err = store.UpdateAlert(alert)
 	if err != nil {
 		t.Fatalf("Failed to update alert: %v", err)
@@ -243,7 +240,7 @@ func TestFiltering(t *testing.T) {
 		status := models.IncidentStatusOpen
 		severity := models.SeverityHigh
 		assignee := "user123"
-		
+
 		filter := IncidentFilter{
 			Status:     &status,
 			Severity:   &severity,
@@ -270,7 +267,7 @@ func TestFiltering(t *testing.T) {
 		status := "firing"
 		incidentID := "incident-123"
 		fingerprint := "alert-fingerprint"
-		
+
 		filter := AlertFilter{
 			Status:      &status,
 			IncidentID:  &incidentID,

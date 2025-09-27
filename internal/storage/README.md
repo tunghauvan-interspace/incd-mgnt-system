@@ -37,14 +37,14 @@ func main() {
     }
     defer store.Close()
     
-    // Create repository
-    repo := storage.NewRepository(store)
+    // Create incident repository
+    repo := storage.NewIncidentRepository(store)
     
     ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
     defer cancel()
     
     // Use repository methods...
-    incidents, err := repo.ListIncidents(ctx, storage.IncidentFilter{
+    incidents, err := repo.List(ctx, storage.IncidentFilter{
         Limit: 10,
         OrderBy: "created_at",
     })

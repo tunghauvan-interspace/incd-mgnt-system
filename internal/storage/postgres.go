@@ -45,7 +45,7 @@ func NewPostgresStore(cfg *config.Config) (*PostgresStore, error) {
 	}
 
 	store := &PostgresStore{db: db}
-	
+
 	// Run migrations
 	if err := store.runMigrations(); err != nil {
 		db.Close()
@@ -81,7 +81,7 @@ func (s *PostgresStore) runMigrations() error {
 			break
 		}
 	}
-	
+
 	if err != nil {
 		return fmt.Errorf("failed to initialize migrations: %w", err)
 	}
@@ -102,14 +102,14 @@ func getMigrationsPath() string {
 		"../../migrations",
 		"../../../migrations",
 	}
-	
+
 	for _, path := range paths {
 		if _, err := os.Stat(path); err == nil {
 			abs, _ := filepath.Abs(path)
 			return abs
 		}
 	}
-	
+
 	// Fallback to relative path
 	return "migrations"
 }
@@ -124,23 +124,23 @@ func (s *PostgresStore) GetIncidentByID(ctx context.Context, id string) (*models
 		FROM incidents
 		WHERE id = $1
 	`
-	
+
 	var incident models.Incident
 	var labelsJSON []byte
-	
+
 	err := s.db.QueryRowContext(ctx, query, id).Scan(
 		&incident.ID, &incident.Title, &incident.Description,
 		&incident.Status, &incident.Severity, &incident.CreatedAt, &incident.UpdatedAt,
 		&incident.AckedAt, &incident.ResolvedAt, &incident.AssigneeID, &labelsJSON,
 	)
-	
+
 	if err == sql.ErrNoRows {
 		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Parse labels JSON
 	if len(labelsJSON) > 0 {
 		if err := json.Unmarshal(labelsJSON, &incident.Labels); err != nil {
@@ -149,7 +149,7 @@ func (s *PostgresStore) GetIncidentByID(ctx context.Context, id string) (*models
 	} else {
 		incident.Labels = make(map[string]string)
 	}
-	
+
 	// Get associated alert IDs
 	alertQuery := `SELECT id FROM alerts WHERE incident_id = $1`
 	rows, err := s.db.QueryContext(ctx, alertQuery, id)
@@ -157,7 +157,7 @@ func (s *PostgresStore) GetIncidentByID(ctx context.Context, id string) (*models
 		return nil, err
 	}
 	defer rows.Close()
-	
+
 	var alertIDs []string
 	for rows.Next() {
 		var alertID string
@@ -167,7 +167,7 @@ func (s *PostgresStore) GetIncidentByID(ctx context.Context, id string) (*models
 		alertIDs = append(alertIDs, alertID)
 	}
 	incident.AlertIDs = alertIDs
-	
+
 	return &incident, nil
 }
 
@@ -187,7 +187,7 @@ func (s *PostgresStore) ListIncidentsWithFilter(ctx context.Context, filter Inci
 		  AND ($2::incident_severity IS NULL OR severity = $2)
 		  AND ($3::text IS NULL OR assignee_id = $3)
 	`
-	
+
 	// Handle ordering with SQL injection protection
 	orderBy := "created_at"
 	if filter.OrderBy != "" {
@@ -199,7 +199,7 @@ func (s *PostgresStore) ListIncidentsWithFilter(ctx context.Context, filter Inci
 		}
 	}
 	query += " ORDER BY " + orderBy + " DESC"
-	
+
 	// Add pagination
 	if filter.Limit > 0 {
 		query += " LIMIT $4"
@@ -207,11 +207,11 @@ func (s *PostgresStore) ListIncidentsWithFilter(ctx context.Context, filter Inci
 			query += " OFFSET $5"
 		}
 	}
-	
+
 	// Execute query with appropriate parameters
 	var rows *sql.Rows
 	var err error
-	
+
 	if filter.Limit > 0 {
 		if filter.Offset > 0 {
 			rows, err = s.db.QueryContext(ctx, query, filter.Status, filter.Severity, filter.AssigneeID, filter.Limit, filter.Offset)
@@ -230,17 +230,17 @@ func (s *PostgresStore) ListIncidentsWithFilter(ctx context.Context, filter Inci
 			ORDER BY ` + orderBy + ` DESC`
 		rows, err = s.db.QueryContext(ctx, query, filter.Status, filter.Severity, filter.AssigneeID)
 	}
-	
+
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	
+
 	var incidents []*models.Incident
 	for rows.Next() {
 		var incident models.Incident
 		var labelsJSON []byte
-		
+
 		err := rows.Scan(
 			&incident.ID, &incident.Title, &incident.Description,
 			&incident.Status, &incident.Severity, &incident.CreatedAt, &incident.UpdatedAt,
@@ -249,7 +249,7 @@ func (s *PostgresStore) ListIncidentsWithFilter(ctx context.Context, filter Inci
 		if err != nil {
 			return nil, err
 		}
-		
+
 		// Parse labels JSON
 		if len(labelsJSON) > 0 {
 			if err := json.Unmarshal(labelsJSON, &incident.Labels); err != nil {
@@ -258,14 +258,14 @@ func (s *PostgresStore) ListIncidentsWithFilter(ctx context.Context, filter Inci
 		} else {
 			incident.Labels = make(map[string]string)
 		}
-		
+
 		// Get associated alert IDs for each incident
 		alertQuery := `SELECT id FROM alerts WHERE incident_id = $1`
 		alertRows, err := s.db.QueryContext(ctx, alertQuery, incident.ID)
 		if err != nil {
 			return nil, err
 		}
-		
+
 		var alertIDs []string
 		for alertRows.Next() {
 			var alertID string
@@ -277,14 +277,14 @@ func (s *PostgresStore) ListIncidentsWithFilter(ctx context.Context, filter Inci
 		}
 		alertRows.Close()
 		incident.AlertIDs = alertIDs
-		
+
 		incidents = append(incidents, &incident)
 	}
-	
+
 	return incidents, nil
 }
 
-// ListIncidents provides backward compatibility for the old Store interface  
+// ListIncidents provides backward compatibility for the old Store interface
 func (s *PostgresStore) ListIncidents() ([]*models.Incident, error) {
 	ctx := context.Background()
 	query := `
@@ -293,18 +293,18 @@ func (s *PostgresStore) ListIncidents() ([]*models.Incident, error) {
 		FROM incidents
 		ORDER BY created_at DESC
 	`
-	
+
 	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	
+
 	var incidents []*models.Incident
 	for rows.Next() {
 		var incident models.Incident
 		var labelsJSON []byte
-		
+
 		err := rows.Scan(
 			&incident.ID, &incident.Title, &incident.Description,
 			&incident.Status, &incident.Severity, &incident.CreatedAt, &incident.UpdatedAt,
@@ -313,7 +313,7 @@ func (s *PostgresStore) ListIncidents() ([]*models.Incident, error) {
 		if err != nil {
 			return nil, err
 		}
-		
+
 		// Parse labels JSON
 		if len(labelsJSON) > 0 {
 			if err := json.Unmarshal(labelsJSON, &incident.Labels); err != nil {
@@ -322,14 +322,14 @@ func (s *PostgresStore) ListIncidents() ([]*models.Incident, error) {
 		} else {
 			incident.Labels = make(map[string]string)
 		}
-		
+
 		// Get associated alert IDs for each incident
 		alertQuery := `SELECT id FROM alerts WHERE incident_id = $1`
 		alertRows, err := s.db.QueryContext(ctx, alertQuery, incident.ID)
 		if err != nil {
 			return nil, err
 		}
-		
+
 		var alertIDs []string
 		for alertRows.Next() {
 			var alertID string
@@ -341,10 +341,10 @@ func (s *PostgresStore) ListIncidents() ([]*models.Incident, error) {
 		}
 		alertRows.Close()
 		incident.AlertIDs = alertIDs
-		
+
 		incidents = append(incidents, &incident)
 	}
-	
+
 	return incidents, nil
 }
 
@@ -354,17 +354,17 @@ func (s *PostgresStore) CreateIncidentWithContext(ctx context.Context, incident 
 	if err != nil {
 		return fmt.Errorf("failed to marshal labels: %w", err)
 	}
-	
+
 	query := `
 		INSERT INTO incidents (id, title, description, status, severity, created_at, updated_at, assignee_id, labels)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
-	
+
 	_, err = s.db.ExecContext(ctx, query,
 		incident.ID, incident.Title, incident.Description, incident.Status, incident.Severity,
 		incident.CreatedAt, incident.UpdatedAt, incident.AssigneeID, labelsJSON,
 	)
-	
+
 	return err
 }
 
@@ -376,17 +376,17 @@ func (s *PostgresStore) CreateIncident(incident *models.Incident) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal labels: %w", err)
 	}
-	
+
 	query := `
 		INSERT INTO incidents (id, title, description, status, severity, created_at, updated_at, assignee_id, labels)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
-	
+
 	_, err = s.db.ExecContext(context.Background(), query,
 		incident.ID, incident.Title, incident.Description, incident.Status, incident.Severity,
 		incident.CreatedAt, incident.UpdatedAt, incident.AssigneeID, labelsJSON,
 	)
-	
+
 	return err
 }
 
@@ -396,14 +396,14 @@ func (s *PostgresStore) UpdateIncidentWithContext(ctx context.Context, incident 
 	if err != nil {
 		return fmt.Errorf("failed to marshal labels: %w", err)
 	}
-	
+
 	query := `
 		UPDATE incidents 
 		SET title = $2, description = $3, status = $4, severity = $5,
 		    updated_at = $6, acked_at = $7, resolved_at = $8, assignee_id = $9, labels = $10
 		WHERE id = $1
 	`
-	
+
 	result, err := s.db.ExecContext(ctx, query,
 		incident.ID, incident.Title, incident.Description, incident.Status, incident.Severity,
 		incident.UpdatedAt, incident.AckedAt, incident.ResolvedAt, incident.AssigneeID, labelsJSON,
@@ -411,7 +411,7 @@ func (s *PostgresStore) UpdateIncidentWithContext(ctx context.Context, incident 
 	if err != nil {
 		return err
 	}
-	
+
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		return err
@@ -419,7 +419,7 @@ func (s *PostgresStore) UpdateIncidentWithContext(ctx context.Context, incident 
 	if rowsAffected == 0 {
 		return ErrNotFound
 	}
-	
+
 	return nil
 }
 
@@ -429,14 +429,14 @@ func (s *PostgresStore) UpdateIncident(incident *models.Incident) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal labels: %w", err)
 	}
-	
+
 	query := `
 		UPDATE incidents 
 		SET title = $2, description = $3, status = $4, severity = $5,
 		    updated_at = $6, acked_at = $7, resolved_at = $8, assignee_id = $9, labels = $10
 		WHERE id = $1
 	`
-	
+
 	result, err := s.db.ExecContext(context.Background(), query,
 		incident.ID, incident.Title, incident.Description, incident.Status, incident.Severity,
 		incident.UpdatedAt, incident.AckedAt, incident.ResolvedAt, incident.AssigneeID, labelsJSON,
@@ -444,7 +444,7 @@ func (s *PostgresStore) UpdateIncident(incident *models.Incident) error {
 	if err != nil {
 		return err
 	}
-	
+
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		return err
@@ -452,7 +452,7 @@ func (s *PostgresStore) UpdateIncident(incident *models.Incident) error {
 	if rowsAffected == 0 {
 		return ErrNotFound
 	}
-	
+
 	return nil
 }
 
@@ -463,7 +463,7 @@ func (s *PostgresStore) DeleteIncidentWithContext(ctx context.Context, id string
 	if err != nil {
 		return err
 	}
-	
+
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		return err
@@ -471,7 +471,7 @@ func (s *PostgresStore) DeleteIncidentWithContext(ctx context.Context, id string
 	if rowsAffected == 0 {
 		return ErrNotFound
 	}
-	
+
 	return nil
 }
 
@@ -482,7 +482,7 @@ func (s *PostgresStore) DeleteIncident(id string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		return err
@@ -490,7 +490,7 @@ func (s *PostgresStore) DeleteIncident(id string) error {
 	if rowsAffected == 0 {
 		return ErrNotFound
 	}
-	
+
 	return nil
 }
 
@@ -503,13 +503,13 @@ func (s *PostgresStore) CountIncidents(ctx context.Context, filter IncidentFilte
 		  AND ($2::incident_severity IS NULL OR severity = $2)
 		  AND ($3::text IS NULL OR assignee_id = $3)
 	`
-	
+
 	var count int
 	err := s.db.QueryRowContext(ctx, query, filter.Status, filter.Severity, filter.AssigneeID).Scan(&count)
 	if err != nil {
 		return 0, err
 	}
-	
+
 	return count, nil
 }
 
@@ -522,28 +522,28 @@ func (s *PostgresStore) GetAlertByID(ctx context.Context, id string) (*models.Al
 		FROM alerts
 		WHERE id = $1
 	`
-	
+
 	var alert models.Alert
 	var labelsJSON, annotationsJSON []byte
 	var incidentID sql.NullString
-	
+
 	err := s.db.QueryRowContext(ctx, query, id).Scan(
 		&alert.ID, &alert.Fingerprint, &alert.Status, &alert.StartsAt, &alert.EndsAt,
 		&labelsJSON, &annotationsJSON, &incidentID, &alert.CreatedAt,
 	)
-	
+
 	if err == sql.ErrNoRows {
 		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Handle nullable incident_id
 	if incidentID.Valid {
 		alert.IncidentID = incidentID.String
 	}
-	
+
 	// Parse JSON fields
 	if len(labelsJSON) > 0 {
 		if err := json.Unmarshal(labelsJSON, &alert.Labels); err != nil {
@@ -552,7 +552,7 @@ func (s *PostgresStore) GetAlertByID(ctx context.Context, id string) (*models.Al
 	} else {
 		alert.Labels = make(map[string]string)
 	}
-	
+
 	if len(annotationsJSON) > 0 {
 		if err := json.Unmarshal(annotationsJSON, &alert.Annotations); err != nil {
 			return nil, fmt.Errorf("failed to parse annotations: %w", err)
@@ -560,7 +560,7 @@ func (s *PostgresStore) GetAlertByID(ctx context.Context, id string) (*models.Al
 	} else {
 		alert.Annotations = make(map[string]string)
 	}
-	
+
 	return &alert, nil
 }
 
@@ -579,7 +579,7 @@ func (s *PostgresStore) ListAlertsWithFilter(ctx context.Context, filter AlertFi
 		  AND ($2::uuid IS NULL OR incident_id = $2::uuid)
 		  AND ($3::text IS NULL OR fingerprint = $3)
 	`
-	
+
 	// Handle ordering with SQL injection protection
 	orderBy := "created_at"
 	if filter.OrderBy != "" {
@@ -591,7 +591,7 @@ func (s *PostgresStore) ListAlertsWithFilter(ctx context.Context, filter AlertFi
 		}
 	}
 	query += " ORDER BY " + orderBy + " DESC"
-	
+
 	// Add pagination
 	if filter.Limit > 0 {
 		query += " LIMIT $4"
@@ -599,11 +599,11 @@ func (s *PostgresStore) ListAlertsWithFilter(ctx context.Context, filter AlertFi
 			query += " OFFSET $5"
 		}
 	}
-	
+
 	// Execute query with appropriate parameters
 	var rows *sql.Rows
 	var err error
-	
+
 	if filter.Limit > 0 {
 		if filter.Offset > 0 {
 			rows, err = s.db.QueryContext(ctx, query, filter.Status, filter.IncidentID, filter.Fingerprint, filter.Limit, filter.Offset)
@@ -621,18 +621,18 @@ func (s *PostgresStore) ListAlertsWithFilter(ctx context.Context, filter AlertFi
 			ORDER BY ` + orderBy + ` DESC`
 		rows, err = s.db.QueryContext(ctx, query, filter.Status, filter.IncidentID, filter.Fingerprint)
 	}
-	
+
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	
+
 	var alerts []*models.Alert
 	for rows.Next() {
 		var alert models.Alert
 		var labelsJSON, annotationsJSON []byte
 		var incidentID sql.NullString
-		
+
 		err := rows.Scan(
 			&alert.ID, &alert.Fingerprint, &alert.Status, &alert.StartsAt, &alert.EndsAt,
 			&labelsJSON, &annotationsJSON, &incidentID, &alert.CreatedAt,
@@ -640,12 +640,12 @@ func (s *PostgresStore) ListAlertsWithFilter(ctx context.Context, filter AlertFi
 		if err != nil {
 			return nil, err
 		}
-		
+
 		// Handle nullable incident_id
 		if incidentID.Valid {
 			alert.IncidentID = incidentID.String
 		}
-		
+
 		// Parse JSON fields
 		if len(labelsJSON) > 0 {
 			if err := json.Unmarshal(labelsJSON, &alert.Labels); err != nil {
@@ -654,7 +654,7 @@ func (s *PostgresStore) ListAlertsWithFilter(ctx context.Context, filter AlertFi
 		} else {
 			alert.Labels = make(map[string]string)
 		}
-		
+
 		if len(annotationsJSON) > 0 {
 			if err := json.Unmarshal(annotationsJSON, &alert.Annotations); err != nil {
 				return nil, fmt.Errorf("failed to parse annotations: %w", err)
@@ -662,10 +662,10 @@ func (s *PostgresStore) ListAlertsWithFilter(ctx context.Context, filter AlertFi
 		} else {
 			alert.Annotations = make(map[string]string)
 		}
-		
+
 		alerts = append(alerts, &alert)
 	}
-	
+
 	return alerts, nil
 }
 
@@ -677,19 +677,19 @@ func (s *PostgresStore) ListAlerts() ([]*models.Alert, error) {
 		FROM alerts
 		ORDER BY created_at DESC
 	`
-	
+
 	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	
+
 	var alerts []*models.Alert
 	for rows.Next() {
 		var alert models.Alert
 		var labelsJSON, annotationsJSON []byte
 		var incidentID sql.NullString
-		
+
 		err := rows.Scan(
 			&alert.ID, &alert.Fingerprint, &alert.Status, &alert.StartsAt, &alert.EndsAt,
 			&labelsJSON, &annotationsJSON, &incidentID, &alert.CreatedAt,
@@ -697,12 +697,12 @@ func (s *PostgresStore) ListAlerts() ([]*models.Alert, error) {
 		if err != nil {
 			return nil, err
 		}
-		
+
 		// Handle nullable incident_id
 		if incidentID.Valid {
 			alert.IncidentID = incidentID.String
 		}
-		
+
 		// Parse JSON fields
 		if len(labelsJSON) > 0 {
 			if err := json.Unmarshal(labelsJSON, &alert.Labels); err != nil {
@@ -711,7 +711,7 @@ func (s *PostgresStore) ListAlerts() ([]*models.Alert, error) {
 		} else {
 			alert.Labels = make(map[string]string)
 		}
-		
+
 		if len(annotationsJSON) > 0 {
 			if err := json.Unmarshal(annotationsJSON, &alert.Annotations); err != nil {
 				return nil, fmt.Errorf("failed to parse annotations: %w", err)
@@ -719,10 +719,10 @@ func (s *PostgresStore) ListAlerts() ([]*models.Alert, error) {
 		} else {
 			alert.Annotations = make(map[string]string)
 		}
-		
+
 		alerts = append(alerts, &alert)
 	}
-	
+
 	return alerts, nil
 }
 
@@ -732,17 +732,17 @@ func (s *PostgresStore) CreateAlertWithContext(ctx context.Context, alert *model
 	if err != nil {
 		return fmt.Errorf("failed to marshal labels: %w", err)
 	}
-	
+
 	annotationsJSON, err := json.Marshal(alert.Annotations)
 	if err != nil {
 		return fmt.Errorf("failed to marshal annotations: %w", err)
 	}
-	
+
 	query := `
 		INSERT INTO alerts (id, fingerprint, status, starts_at, ends_at, labels, annotations, incident_id, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
-	
+
 	// Handle empty incident_id as NULL
 	var incidentID interface{}
 	if alert.IncidentID == "" {
@@ -750,12 +750,12 @@ func (s *PostgresStore) CreateAlertWithContext(ctx context.Context, alert *model
 	} else {
 		incidentID = alert.IncidentID
 	}
-	
+
 	_, err = s.db.ExecContext(ctx, query,
 		alert.ID, alert.Fingerprint, alert.Status, alert.StartsAt, alert.EndsAt,
 		labelsJSON, annotationsJSON, incidentID, alert.CreatedAt,
 	)
-	
+
 	return err
 }
 
@@ -765,19 +765,19 @@ func (s *PostgresStore) UpdateAlertWithContext(ctx context.Context, alert *model
 	if err != nil {
 		return fmt.Errorf("failed to marshal labels: %w", err)
 	}
-	
+
 	annotationsJSON, err := json.Marshal(alert.Annotations)
 	if err != nil {
 		return fmt.Errorf("failed to marshal annotations: %w", err)
 	}
-	
+
 	query := `
 		UPDATE alerts 
 		SET fingerprint = $2, status = $3, starts_at = $4, ends_at = $5,
 		    labels = $6, annotations = $7, incident_id = $8
 		WHERE id = $1
 	`
-	
+
 	// Handle empty incident_id as NULL
 	var incidentID interface{}
 	if alert.IncidentID == "" {
@@ -785,7 +785,7 @@ func (s *PostgresStore) UpdateAlertWithContext(ctx context.Context, alert *model
 	} else {
 		incidentID = alert.IncidentID
 	}
-	
+
 	result, err := s.db.ExecContext(ctx, query,
 		alert.ID, alert.Fingerprint, alert.Status, alert.StartsAt, alert.EndsAt,
 		labelsJSON, annotationsJSON, incidentID,
@@ -793,7 +793,7 @@ func (s *PostgresStore) UpdateAlertWithContext(ctx context.Context, alert *model
 	if err != nil {
 		return err
 	}
-	
+
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		return err
@@ -801,7 +801,7 @@ func (s *PostgresStore) UpdateAlertWithContext(ctx context.Context, alert *model
 	if rowsAffected == 0 {
 		return ErrNotFound
 	}
-	
+
 	return nil
 }
 
@@ -812,7 +812,7 @@ func (s *PostgresStore) DeleteAlertWithContext(ctx context.Context, id string) e
 	if err != nil {
 		return err
 	}
-	
+
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		return err
@@ -820,7 +820,7 @@ func (s *PostgresStore) DeleteAlertWithContext(ctx context.Context, id string) e
 	if rowsAffected == 0 {
 		return ErrNotFound
 	}
-	
+
 	return nil
 }
 
@@ -833,13 +833,13 @@ func (s *PostgresStore) CountAlerts(ctx context.Context, filter AlertFilter) (in
 		  AND ($2::uuid IS NULL OR incident_id = $2::uuid)
 		  AND ($3::text IS NULL OR fingerprint = $3)
 	`
-	
+
 	var count int
 	err := s.db.QueryRowContext(ctx, query, filter.Status, filter.IncidentID, filter.Fingerprint).Scan(&count)
 	if err != nil {
 		return 0, err
 	}
-	
+
 	return count, nil
 }
 
@@ -847,22 +847,22 @@ func (s *PostgresStore) CountAlerts(ctx context.Context, filter AlertFilter) (in
 
 func (s *PostgresStore) CreateAlert(alert *models.Alert) error {
 	ctx := context.Background()
-	
+
 	labelsJSON, err := json.Marshal(alert.Labels)
 	if err != nil {
 		return fmt.Errorf("failed to marshal labels: %w", err)
 	}
-	
+
 	annotationsJSON, err := json.Marshal(alert.Annotations)
 	if err != nil {
 		return fmt.Errorf("failed to marshal annotations: %w", err)
 	}
-	
+
 	query := `
 		INSERT INTO alerts (id, fingerprint, status, starts_at, ends_at, labels, annotations, incident_id, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
-	
+
 	// Handle empty incident_id as NULL
 	var incidentID interface{}
 	if alert.IncidentID == "" {
@@ -870,35 +870,35 @@ func (s *PostgresStore) CreateAlert(alert *models.Alert) error {
 	} else {
 		incidentID = alert.IncidentID
 	}
-	
+
 	_, err = s.db.ExecContext(ctx, query,
 		alert.ID, alert.Fingerprint, alert.Status, alert.StartsAt, alert.EndsAt,
 		labelsJSON, annotationsJSON, incidentID, alert.CreatedAt,
 	)
-	
+
 	return err
 }
 
 func (s *PostgresStore) UpdateAlert(alert *models.Alert) error {
 	ctx := context.Background()
-	
+
 	labelsJSON, err := json.Marshal(alert.Labels)
 	if err != nil {
 		return fmt.Errorf("failed to marshal labels: %w", err)
 	}
-	
+
 	annotationsJSON, err := json.Marshal(alert.Annotations)
 	if err != nil {
 		return fmt.Errorf("failed to marshal annotations: %w", err)
 	}
-	
+
 	query := `
 		UPDATE alerts 
 		SET fingerprint = $2, status = $3, starts_at = $4, ends_at = $5,
 		    labels = $6, annotations = $7, incident_id = $8
 		WHERE id = $1
 	`
-	
+
 	// Handle empty incident_id as NULL
 	var incidentID interface{}
 	if alert.IncidentID == "" {
@@ -906,7 +906,7 @@ func (s *PostgresStore) UpdateAlert(alert *models.Alert) error {
 	} else {
 		incidentID = alert.IncidentID
 	}
-	
+
 	result, err := s.db.ExecContext(ctx, query,
 		alert.ID, alert.Fingerprint, alert.Status, alert.StartsAt, alert.EndsAt,
 		labelsJSON, annotationsJSON, incidentID,
@@ -914,7 +914,7 @@ func (s *PostgresStore) UpdateAlert(alert *models.Alert) error {
 	if err != nil {
 		return err
 	}
-	
+
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		return err
@@ -922,19 +922,19 @@ func (s *PostgresStore) UpdateAlert(alert *models.Alert) error {
 	if rowsAffected == 0 {
 		return ErrNotFound
 	}
-	
+
 	return nil
 }
 
 func (s *PostgresStore) DeleteAlert(id string) error {
 	ctx := context.Background()
-	
+
 	query := `DELETE FROM alerts WHERE id = $1`
 	result, err := s.db.ExecContext(ctx, query, id)
 	if err != nil {
 		return err
 	}
-	
+
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		return err
@@ -942,7 +942,7 @@ func (s *PostgresStore) DeleteAlert(id string) error {
 	if rowsAffected == 0 {
 		return ErrNotFound
 	}
-	
+
 	return nil
 }
 
@@ -1013,336 +1013,11 @@ func (s *PostgresStore) DeleteOnCallSchedule(id string) error {
 func (s *PostgresStore) HealthCheck() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	
+
 	return s.db.PingContext(ctx)
 }
 
 // GetDBStats returns database connection statistics
 func (s *PostgresStore) GetDBStats() sql.DBStats {
 	return s.db.Stats()
-}
-
-// WithTransaction implements Repository.WithTransaction
-func (s *PostgresStore) WithTransaction(ctx context.Context, fn func(Repository) error) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	
-	// Create a transaction wrapper that implements Repository
-	txRepo := &transactionWrapper{tx: tx, store: s}
-	
-	// Execute the function with the transaction wrapper
-	err = fn(txRepo)
-	if err != nil {
-		// Rollback on error
-		if rbErr := tx.Rollback(); rbErr != nil {
-			return fmt.Errorf("failed to rollback transaction: %v (original error: %w)", rbErr, err)
-		}
-		return err
-	}
-	
-	// Commit if successful
-	return tx.Commit()
-}
-
-// transactionWrapper wraps a transaction to implement the Repository interface
-type transactionWrapper struct {
-	tx    *sql.Tx
-	store *PostgresStore
-}
-
-func (tw *transactionWrapper) CreateIncident(ctx context.Context, incident *models.Incident) error {
-	labelsJSON, err := json.Marshal(incident.Labels)
-	if err != nil {
-		return fmt.Errorf("failed to marshal labels: %w", err)
-	}
-	
-	query := `
-		INSERT INTO incidents (id, title, description, status, severity, created_at, updated_at, assignee_id, labels)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-	`
-	
-	_, err = tw.tx.ExecContext(ctx, query,
-		incident.ID, incident.Title, incident.Description, incident.Status, incident.Severity,
-		incident.CreatedAt, incident.UpdatedAt, incident.AssigneeID, labelsJSON,
-	)
-	
-	return err
-}
-
-func (tw *transactionWrapper) GetIncidentByID(ctx context.Context, id string) (*models.Incident, error) {
-	// For read operations, use the main store implementation
-	return tw.store.GetIncidentByID(ctx, id)
-}
-
-func (tw *transactionWrapper) ListIncidents(ctx context.Context, filter IncidentFilter) ([]*models.Incident, error) {
-	// For read operations, use the main store implementation  
-	return tw.store.ListIncidentsWithFilter(ctx, filter)
-}
-
-func (tw *transactionWrapper) UpdateIncident(ctx context.Context, incident *models.Incident) error {
-	labelsJSON, err := json.Marshal(incident.Labels)
-	if err != nil {
-		return fmt.Errorf("failed to marshal labels: %w", err)
-	}
-	
-	query := `
-		UPDATE incidents 
-		SET title = $2, description = $3, status = $4, severity = $5,
-		    updated_at = $6, acked_at = $7, resolved_at = $8, assignee_id = $9, labels = $10
-		WHERE id = $1
-	`
-	
-	result, err := tw.tx.ExecContext(ctx, query,
-		incident.ID, incident.Title, incident.Description, incident.Status, incident.Severity,
-		incident.UpdatedAt, incident.AckedAt, incident.ResolvedAt, incident.AssigneeID, labelsJSON,
-	)
-	if err != nil {
-		return err
-	}
-	
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rowsAffected == 0 {
-		return ErrNotFound
-	}
-	
-	return nil
-}
-
-func (tw *transactionWrapper) DeleteIncident(ctx context.Context, id string) error {
-	query := `DELETE FROM incidents WHERE id = $1`
-	result, err := tw.tx.ExecContext(ctx, query, id)
-	if err != nil {
-		return err
-	}
-	
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rowsAffected == 0 {
-		return ErrNotFound
-	}
-	
-	return nil
-}
-
-func (tw *transactionWrapper) CountIncidents(ctx context.Context, filter IncidentFilter) (int, error) {
-	// For read operations, use the main store implementation
-	return tw.store.CountIncidents(ctx, filter)
-}
-
-// Implement AlertRepository methods with transaction
-func (tw *transactionWrapper) CreateAlert(ctx context.Context, alert *models.Alert) error {
-	labelsJSON, err := json.Marshal(alert.Labels)
-	if err != nil {
-		return fmt.Errorf("failed to marshal labels: %w", err)
-	}
-	
-	annotationsJSON, err := json.Marshal(alert.Annotations)
-	if err != nil {
-		return fmt.Errorf("failed to marshal annotations: %w", err)
-	}
-	
-	query := `
-		INSERT INTO alerts (id, fingerprint, status, starts_at, ends_at, labels, annotations, incident_id, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-	`
-	
-	// Handle empty incident_id as NULL
-	var incidentID interface{}
-	if alert.IncidentID == "" {
-		incidentID = nil
-	} else {
-		incidentID = alert.IncidentID
-	}
-	
-	_, err = tw.tx.ExecContext(ctx, query,
-		alert.ID, alert.Fingerprint, alert.Status, alert.StartsAt, alert.EndsAt,
-		labelsJSON, annotationsJSON, incidentID, alert.CreatedAt,
-	)
-	
-	return err
-}
-
-func (tw *transactionWrapper) GetAlertByID(ctx context.Context, id string) (*models.Alert, error) {
-	// For read operations, use the main store implementation
-	return tw.store.GetAlertByID(ctx, id)
-}
-
-func (tw *transactionWrapper) ListAlerts(ctx context.Context, filter AlertFilter) ([]*models.Alert, error) {
-	// For read operations, use the main store implementation
-	return tw.store.ListAlertsWithFilter(ctx, filter)
-}
-
-func (tw *transactionWrapper) UpdateAlert(ctx context.Context, alert *models.Alert) error {
-	labelsJSON, err := json.Marshal(alert.Labels)
-	if err != nil {
-		return fmt.Errorf("failed to marshal labels: %w", err)
-	}
-	
-	annotationsJSON, err := json.Marshal(alert.Annotations)
-	if err != nil {
-		return fmt.Errorf("failed to marshal annotations: %w", err)
-	}
-	
-	query := `
-		UPDATE alerts 
-		SET fingerprint = $2, status = $3, starts_at = $4, ends_at = $5,
-		    labels = $6, annotations = $7, incident_id = $8
-		WHERE id = $1
-	`
-	
-	// Handle empty incident_id as NULL
-	var incidentID interface{}
-	if alert.IncidentID == "" {
-		incidentID = nil
-	} else {
-		incidentID = alert.IncidentID
-	}
-	
-	result, err := tw.tx.ExecContext(ctx, query,
-		alert.ID, alert.Fingerprint, alert.Status, alert.StartsAt, alert.EndsAt,
-		labelsJSON, annotationsJSON, incidentID,
-	)
-	if err != nil {
-		return err
-	}
-	
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rowsAffected == 0 {
-		return ErrNotFound
-	}
-	
-	return nil
-}
-
-func (tw *transactionWrapper) DeleteAlert(ctx context.Context, id string) error {
-	query := `DELETE FROM alerts WHERE id = $1`
-	result, err := tw.tx.ExecContext(ctx, query, id)
-	if err != nil {
-		return err
-	}
-	
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rowsAffected == 0 {
-		return ErrNotFound
-	}
-	
-	return nil
-}
-
-func (tw *transactionWrapper) CountAlerts(ctx context.Context, filter AlertFilter) (int, error) {
-	// For read operations, use the main store implementation
-	return tw.store.CountAlerts(ctx, filter)
-}
-
-// WithTransaction for nested transactions (not supported, returns error)
-func (tw *transactionWrapper) WithTransaction(ctx context.Context, fn func(Repository) error) error {
-	return fmt.Errorf("nested transactions are not supported")
-}
-
-// HealthCheck delegates to the main store
-func (tw *transactionWrapper) HealthCheck() error {
-	return tw.store.HealthCheck()
-}
-
-// Close delegates to the main store
-func (tw *transactionWrapper) Close() error {
-	return tw.store.Close()
-}
-
-// RepositoryAdapter adapts PostgresStore to implement Repository interface
-type RepositoryAdapter struct {
-	store *PostgresStore
-}
-
-// NewRepository creates a repository from a PostgresStore
-func NewRepository(store *PostgresStore) Repository {
-	return &RepositoryAdapter{store: store}
-}
-
-// CreateIncident implements IncidentRepository.CreateIncident
-func (r *RepositoryAdapter) CreateIncident(ctx context.Context, incident *models.Incident) error {
-	return r.store.CreateIncidentWithContext(ctx, incident)
-}
-
-// GetIncidentByID implements IncidentRepository.GetIncidentByID
-func (r *RepositoryAdapter) GetIncidentByID(ctx context.Context, id string) (*models.Incident, error) {
-	return r.store.GetIncidentByID(ctx, id)
-}
-
-// ListIncidents implements IncidentRepository.ListIncidents
-func (r *RepositoryAdapter) ListIncidents(ctx context.Context, filter IncidentFilter) ([]*models.Incident, error) {
-	return r.store.ListIncidentsWithFilter(ctx, filter)
-}
-
-// UpdateIncident implements IncidentRepository.UpdateIncident
-func (r *RepositoryAdapter) UpdateIncident(ctx context.Context, incident *models.Incident) error {
-	return r.store.UpdateIncidentWithContext(ctx, incident)
-}
-
-// DeleteIncident implements IncidentRepository.DeleteIncident
-func (r *RepositoryAdapter) DeleteIncident(ctx context.Context, id string) error {
-	return r.store.DeleteIncidentWithContext(ctx, id)
-}
-
-// CountIncidents implements IncidentRepository.CountIncidents
-func (r *RepositoryAdapter) CountIncidents(ctx context.Context, filter IncidentFilter) (int, error) {
-	return r.store.CountIncidents(ctx, filter)
-}
-
-// CreateAlert implements AlertRepository.CreateAlert
-func (r *RepositoryAdapter) CreateAlert(ctx context.Context, alert *models.Alert) error {
-	return r.store.CreateAlertWithContext(ctx, alert)
-}
-
-// GetAlertByID implements AlertRepository.GetAlertByID
-func (r *RepositoryAdapter) GetAlertByID(ctx context.Context, id string) (*models.Alert, error) {
-	return r.store.GetAlertByID(ctx, id)
-}
-
-// ListAlerts implements AlertRepository.ListAlerts
-func (r *RepositoryAdapter) ListAlerts(ctx context.Context, filter AlertFilter) ([]*models.Alert, error) {
-	return r.store.ListAlertsWithFilter(ctx, filter)
-}
-
-// UpdateAlert implements AlertRepository.UpdateAlert
-func (r *RepositoryAdapter) UpdateAlert(ctx context.Context, alert *models.Alert) error {
-	return r.store.UpdateAlertWithContext(ctx, alert)
-}
-
-// DeleteAlert implements AlertRepository.DeleteAlert
-func (r *RepositoryAdapter) DeleteAlert(ctx context.Context, id string) error {
-	return r.store.DeleteAlertWithContext(ctx, id)
-}
-
-// CountAlerts implements AlertRepository.CountAlerts
-func (r *RepositoryAdapter) CountAlerts(ctx context.Context, filter AlertFilter) (int, error) {
-	return r.store.CountAlerts(ctx, filter)
-}
-
-// WithTransaction implements Repository.WithTransaction
-func (r *RepositoryAdapter) WithTransaction(ctx context.Context, fn func(Repository) error) error {
-	return r.store.WithTransaction(ctx, fn)
-}
-
-// HealthCheck implements Repository.HealthCheck
-func (r *RepositoryAdapter) HealthCheck() error {
-	return r.store.HealthCheck()
-}
-
-// Close implements Repository.Close
-func (r *RepositoryAdapter) Close() error {
-	return r.store.Close()
 }
