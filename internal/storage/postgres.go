@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
@@ -64,11 +66,23 @@ func (s *PostgresStore) runMigrations() error {
 		return err
 	}
 
-	m, err := migrate.NewWithDatabaseInstance(
+	// Try different migration paths to handle different execution contexts
+	migrationPaths := []string{
 		"file://migrations",
-		"postgres", driver)
+		"file://../../migrations",
+		"file://" + getMigrationsPath(),
+	}
+
+	var m *migrate.Migrate
+	for _, path := range migrationPaths {
+		m, err = migrate.NewWithDatabaseInstance(path, "postgres", driver)
+		if err == nil {
+			break
+		}
+	}
+	
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to initialize migrations: %w", err)
 	}
 
 	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
@@ -76,6 +90,27 @@ func (s *PostgresStore) runMigrations() error {
 	}
 
 	return nil
+}
+
+// getMigrationsPath returns the absolute path to migrations directory
+func getMigrationsPath() string {
+	// Try to find migrations directory relative to current working directory
+	paths := []string{
+		"migrations",
+		"../migrations",
+		"../../migrations",
+		"../../../migrations",
+	}
+	
+	for _, path := range paths {
+		if _, err := os.Stat(path); err == nil {
+			abs, _ := filepath.Abs(path)
+			return abs
+		}
+	}
+	
+	// Fallback to relative path
+	return "migrations"
 }
 
 // Incident methods
@@ -283,10 +318,11 @@ func (s *PostgresStore) GetAlert(id string) (*models.Alert, error) {
 	
 	var alert models.Alert
 	var labelsJSON, annotationsJSON []byte
+	var incidentID sql.NullString
 	
 	err := s.db.QueryRowContext(ctx, query, id).Scan(
 		&alert.ID, &alert.Fingerprint, &alert.Status, &alert.StartsAt, &alert.EndsAt,
-		&labelsJSON, &annotationsJSON, &alert.IncidentID, &alert.CreatedAt,
+		&labelsJSON, &annotationsJSON, &incidentID, &alert.CreatedAt,
 	)
 	
 	if err == sql.ErrNoRows {
@@ -294,6 +330,11 @@ func (s *PostgresStore) GetAlert(id string) (*models.Alert, error) {
 	}
 	if err != nil {
 		return nil, err
+	}
+	
+	// Handle nullable incident_id
+	if incidentID.Valid {
+		alert.IncidentID = incidentID.String
 	}
 	
 	// Parse JSON fields
@@ -334,13 +375,19 @@ func (s *PostgresStore) ListAlerts() ([]*models.Alert, error) {
 	for rows.Next() {
 		var alert models.Alert
 		var labelsJSON, annotationsJSON []byte
+		var incidentID sql.NullString
 		
 		err := rows.Scan(
 			&alert.ID, &alert.Fingerprint, &alert.Status, &alert.StartsAt, &alert.EndsAt,
-			&labelsJSON, &annotationsJSON, &alert.IncidentID, &alert.CreatedAt,
+			&labelsJSON, &annotationsJSON, &incidentID, &alert.CreatedAt,
 		)
 		if err != nil {
 			return nil, err
+		}
+		
+		// Handle nullable incident_id
+		if incidentID.Valid {
+			alert.IncidentID = incidentID.String
 		}
 		
 		// Parse JSON fields
@@ -384,9 +431,17 @@ func (s *PostgresStore) CreateAlert(alert *models.Alert) error {
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
 	
+	// Handle empty incident_id as NULL
+	var incidentID interface{}
+	if alert.IncidentID == "" {
+		incidentID = nil
+	} else {
+		incidentID = alert.IncidentID
+	}
+	
 	_, err = s.db.ExecContext(ctx, query,
 		alert.ID, alert.Fingerprint, alert.Status, alert.StartsAt, alert.EndsAt,
-		labelsJSON, annotationsJSON, alert.IncidentID, alert.CreatedAt,
+		labelsJSON, annotationsJSON, incidentID, alert.CreatedAt,
 	)
 	
 	return err
@@ -412,9 +467,17 @@ func (s *PostgresStore) UpdateAlert(alert *models.Alert) error {
 		WHERE id = $1
 	`
 	
+	// Handle empty incident_id as NULL
+	var incidentID interface{}
+	if alert.IncidentID == "" {
+		incidentID = nil
+	} else {
+		incidentID = alert.IncidentID
+	}
+	
 	result, err := s.db.ExecContext(ctx, query,
 		alert.ID, alert.Fingerprint, alert.Status, alert.StartsAt, alert.EndsAt,
-		labelsJSON, annotationsJSON, alert.IncidentID,
+		labelsJSON, annotationsJSON, incidentID,
 	)
 	if err != nil {
 		return err
