@@ -371,23 +371,9 @@ func (s *PostgresStore) CreateIncidentWithContext(ctx context.Context, incident 
 // Old interface backward compatibility methods
 
 // CreateIncident (old interface signature)
+// CreateIncident provides backward compatibility for the old Store interface
 func (s *PostgresStore) CreateIncident(incident *models.Incident) error {
-	labelsJSON, err := json.Marshal(incident.Labels)
-	if err != nil {
-		return fmt.Errorf("failed to marshal labels: %w", err)
-	}
-
-	query := `
-		INSERT INTO incidents (id, title, description, status, severity, created_at, updated_at, assignee_id, labels)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-	`
-
-	_, err = s.db.ExecContext(context.Background(), query,
-		incident.ID, incident.Title, incident.Description, incident.Status, incident.Severity,
-		incident.CreatedAt, incident.UpdatedAt, incident.AssigneeID, labelsJSON,
-	)
-
-	return err
+	return s.CreateIncidentWithContext(context.Background(), incident)
 }
 
 // UpdateIncident implements IncidentRepository.UpdateIncident
@@ -424,36 +410,9 @@ func (s *PostgresStore) UpdateIncidentWithContext(ctx context.Context, incident 
 }
 
 // UpdateIncident (old interface signature - backward compatibility)
+// UpdateIncident provides backward compatibility for the old Store interface
 func (s *PostgresStore) UpdateIncident(incident *models.Incident) error {
-	labelsJSON, err := json.Marshal(incident.Labels)
-	if err != nil {
-		return fmt.Errorf("failed to marshal labels: %w", err)
-	}
-
-	query := `
-		UPDATE incidents 
-		SET title = $2, description = $3, status = $4, severity = $5,
-		    updated_at = $6, acked_at = $7, resolved_at = $8, assignee_id = $9, labels = $10
-		WHERE id = $1
-	`
-
-	result, err := s.db.ExecContext(context.Background(), query,
-		incident.ID, incident.Title, incident.Description, incident.Status, incident.Severity,
-		incident.UpdatedAt, incident.AckedAt, incident.ResolvedAt, incident.AssigneeID, labelsJSON,
-	)
-	if err != nil {
-		return err
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rowsAffected == 0 {
-		return ErrNotFound
-	}
-
-	return nil
+	return s.UpdateIncidentWithContext(context.Background(), incident)
 }
 
 // DeleteIncident implements IncidentRepository.DeleteIncident
@@ -476,22 +435,9 @@ func (s *PostgresStore) DeleteIncidentWithContext(ctx context.Context, id string
 }
 
 // DeleteIncident (old interface signature - backward compatibility)
+// DeleteIncident provides backward compatibility for the old Store interface
 func (s *PostgresStore) DeleteIncident(id string) error {
-	query := `DELETE FROM incidents WHERE id = $1`
-	result, err := s.db.ExecContext(context.Background(), query, id)
-	if err != nil {
-		return err
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rowsAffected == 0 {
-		return ErrNotFound
-	}
-
-	return nil
+	return s.DeleteIncidentWithContext(context.Background(), id)
 }
 
 // CountIncidents implements IncidentRepository.CountIncidents
