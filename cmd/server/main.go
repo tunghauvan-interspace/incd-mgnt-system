@@ -14,10 +14,25 @@ import (
 func main() {
 	cfg := config.LoadConfig()
 
-	// Initialize storage
-	store, err := storage.NewMemoryStore()
-	if err != nil {
-		log.Fatal("Failed to initialize storage:", err)
+	// Initialize storage - use PostgreSQL if DATABASE_URL is provided, otherwise use memory store
+	var store storage.Store
+	var err error
+	
+	if cfg.DatabaseURL != "" {
+		log.Println("Initializing PostgreSQL storage...")
+		pgStore, err := storage.NewPostgresStore(cfg)
+		if err != nil {
+			log.Fatal("Failed to initialize PostgreSQL storage:", err)
+		}
+		store = pgStore
+		log.Println("PostgreSQL storage initialized successfully")
+	} else {
+		log.Println("No database URL provided, using in-memory storage...")
+		store, err = storage.NewMemoryStore()
+		if err != nil {
+			log.Fatal("Failed to initialize memory storage:", err)
+		}
+		log.Println("Memory storage initialized successfully")
 	}
 
 	// Initialize services

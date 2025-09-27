@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"time"
 )
 
 // Config holds all configuration for the application
@@ -10,6 +11,11 @@ type Config struct {
 	Port                string
 	DatabaseURL         string
 	LogLevel            string
+	
+	// Database connection pooling settings
+	DBMaxOpenConns      int
+	DBMaxIdleConns      int
+	DBConnMaxLifetime   time.Duration
 	
 	// Notification settings
 	SlackToken          string
@@ -36,6 +42,11 @@ func LoadConfig() *Config {
 		Port:                getEnv("PORT", "8080"),
 		DatabaseURL:         getEnv("DATABASE_URL", ""),
 		LogLevel:            getEnv("LOG_LEVEL", "info"),
+		
+		// Database connection pooling settings
+		DBMaxOpenConns:      getEnvInt("DB_MAX_OPEN_CONNS", 25),
+		DBMaxIdleConns:      getEnvInt("DB_MAX_IDLE_CONNS", 5),
+		DBConnMaxLifetime:   getEnvDuration("DB_CONN_MAX_LIFETIME", 5*time.Minute),
 		
 		SlackToken:          getEnv("SLACK_TOKEN", ""),
 		SlackChannel:        getEnv("SLACK_CHANNEL", ""),
@@ -76,6 +87,15 @@ func getEnvBool(key string, defaultValue bool) bool {
 	if value := os.Getenv(key); value != "" {
 		if boolValue, err := strconv.ParseBool(value); err == nil {
 			return boolValue
+		}
+	}
+	return defaultValue
+}
+
+func getEnvDuration(key string, defaultValue time.Duration) time.Duration {
+	if value := os.Getenv(key); value != "" {
+		if duration, err := time.ParseDuration(value); err == nil {
+			return duration
 		}
 	}
 	return defaultValue
