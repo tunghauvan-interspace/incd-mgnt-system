@@ -869,6 +869,698 @@ func (s *PostgresStore) DeleteOnCallSchedule(id string) error {
 	return fmt.Errorf("on-call schedules not yet implemented in postgres store")
 }
 
+// User Management Methods
+
+func (s *PostgresStore) GetUser(id string) (*models.User, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	query := `
+		SELECT id, username, email, full_name, password_hash, is_active, 
+			   created_at, updated_at, last_login
+		FROM users WHERE id = $1`
+
+	user := &models.User{}
+	err := s.db.QueryRowContext(ctx, query, id).Scan(
+		&user.ID, &user.Username, &user.Email, &user.FullName, 
+		&user.Password, &user.IsActive, &user.CreatedAt, 
+		&user.UpdatedAt, &user.LastLogin,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+
+	// Load user roles
+	roles, err := s.GetUserRoles(id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load user roles: %w", err)
+	}
+	user.Roles = roles
+
+	return user, nil
+}
+
+func (s *PostgresStore) GetUserByUsername(username string) (*models.User, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	query := `
+		SELECT id, username, email, full_name, password_hash, is_active, 
+			   created_at, updated_at, last_login
+		FROM users WHERE username = $1`
+
+	user := &models.User{}
+	err := s.db.QueryRowContext(ctx, query, username).Scan(
+		&user.ID, &user.Username, &user.Email, &user.FullName, 
+		&user.Password, &user.IsActive, &user.CreatedAt, 
+		&user.UpdatedAt, &user.LastLogin,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("failed to get user by username: %w", err)
+	}
+
+	// Load user roles
+	roles, err := s.GetUserRoles(user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load user roles: %w", err)
+	}
+	user.Roles = roles
+
+	return user, nil
+}
+
+func (s *PostgresStore) GetUserByEmail(email string) (*models.User, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	query := `
+		SELECT id, username, email, full_name, password_hash, is_active, 
+			   created_at, updated_at, last_login
+		FROM users WHERE email = $1`
+
+	user := &models.User{}
+	err := s.db.QueryRowContext(ctx, query, email).Scan(
+		&user.ID, &user.Username, &user.Email, &user.FullName, 
+		&user.Password, &user.IsActive, &user.CreatedAt, 
+		&user.UpdatedAt, &user.LastLogin,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("failed to get user by email: %w", err)
+	}
+
+	// Load user roles
+	roles, err := s.GetUserRoles(user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load user roles: %w", err)
+	}
+	user.Roles = roles
+
+	return user, nil
+}
+
+func (s *PostgresStore) ListUsers() ([]*models.User, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	query := `
+		SELECT id, username, email, full_name, password_hash, is_active, 
+			   created_at, updated_at, last_login
+		FROM users ORDER BY created_at DESC`
+
+	rows, err := s.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list users: %w", err)
+	}
+	defer rows.Close()
+
+	var users []*models.User
+	for rows.Next() {
+		user := &models.User{}
+		err := rows.Scan(
+			&user.ID, &user.Username, &user.Email, &user.FullName,
+			&user.Password, &user.IsActive, &user.CreatedAt,
+			&user.UpdatedAt, &user.LastLogin,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan user: %w", err)
+		}
+
+		// Load user roles (this could be optimized with a join query)
+		roles, err := s.GetUserRoles(user.ID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load user roles: %w", err)
+		}
+		user.Roles = roles
+
+		users = append(users, user)
+	}
+
+	return users, nil
+}
+
+func (s *PostgresStore) CreateUser(user *models.User) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if user.ID == "" {
+		// Let PostgreSQL generate the UUID
+		query := `
+			INSERT INTO users (username, email, full_name, password_hash, is_active, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			RETURNING id`
+
+		err := s.db.QueryRowContext(ctx, query,
+			user.Username, user.Email, user.FullName, user.Password,
+			user.IsActive, user.CreatedAt, user.UpdatedAt,
+		).Scan(&user.ID)
+		
+		if err != nil {
+			return fmt.Errorf("failed to create user: %w", err)
+		}
+	} else {
+		query := `
+			INSERT INTO users (id, username, email, full_name, password_hash, is_active, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
+
+		_, err := s.db.ExecContext(ctx, query,
+			user.ID, user.Username, user.Email, user.FullName, user.Password,
+			user.IsActive, user.CreatedAt, user.UpdatedAt,
+		)
+		
+		if err != nil {
+			return fmt.Errorf("failed to create user: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func (s *PostgresStore) UpdateUser(user *models.User) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	query := `
+		UPDATE users 
+		SET username = $2, email = $3, full_name = $4, password_hash = $5, 
+			is_active = $6, updated_at = $7, last_login = $8
+		WHERE id = $1`
+
+	result, err := s.db.ExecContext(ctx, query,
+		user.ID, user.Username, user.Email, user.FullName, user.Password,
+		user.IsActive, user.UpdatedAt, user.LastLogin,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update user: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return ErrNotFound
+	}
+
+	return nil
+}
+
+func (s *PostgresStore) DeleteUser(id string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	query := `DELETE FROM users WHERE id = $1`
+	result, err := s.db.ExecContext(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete user: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return ErrNotFound
+	}
+
+	return nil
+}
+
+func (s *PostgresStore) UpdateLastLogin(userID string, timestamp time.Time) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	query := `UPDATE users SET last_login = $2 WHERE id = $1`
+	result, err := s.db.ExecContext(ctx, query, userID, timestamp)
+	if err != nil {
+		return fmt.Errorf("failed to update last login: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return ErrNotFound
+	}
+
+	return nil
+}
+
+// Role Management Methods
+
+func (s *PostgresStore) GetRole(id string) (*models.Role, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	query := `
+		SELECT id, name, display_name, description, created_at, updated_at
+		FROM roles WHERE id = $1`
+
+	role := &models.Role{}
+	err := s.db.QueryRowContext(ctx, query, id).Scan(
+		&role.ID, &role.Name, &role.DisplayName, &role.Description,
+		&role.CreatedAt, &role.UpdatedAt,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("failed to get role: %w", err)
+	}
+
+	// Load role permissions
+	permissions, err := s.GetRolePermissions(id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load role permissions: %w", err)
+	}
+	role.Permissions = permissions
+
+	return role, nil
+}
+
+func (s *PostgresStore) GetRoleByName(name string) (*models.Role, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	query := `
+		SELECT id, name, display_name, description, created_at, updated_at
+		FROM roles WHERE name = $1`
+
+	role := &models.Role{}
+	err := s.db.QueryRowContext(ctx, query, name).Scan(
+		&role.ID, &role.Name, &role.DisplayName, &role.Description,
+		&role.CreatedAt, &role.UpdatedAt,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("failed to get role by name: %w", err)
+	}
+
+	// Load role permissions
+	permissions, err := s.GetRolePermissions(role.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load role permissions: %w", err)
+	}
+	role.Permissions = permissions
+
+	return role, nil
+}
+
+func (s *PostgresStore) ListRoles() ([]*models.Role, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	query := `
+		SELECT id, name, display_name, description, created_at, updated_at
+		FROM roles ORDER BY name`
+
+	rows, err := s.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list roles: %w", err)
+	}
+	defer rows.Close()
+
+	var roles []*models.Role
+	for rows.Next() {
+		role := &models.Role{}
+		err := rows.Scan(
+			&role.ID, &role.Name, &role.DisplayName, &role.Description,
+			&role.CreatedAt, &role.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan role: %w", err)
+		}
+
+		// Load role permissions
+		permissions, err := s.GetRolePermissions(role.ID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load role permissions: %w", err)
+		}
+		role.Permissions = permissions
+
+		roles = append(roles, role)
+	}
+
+	return roles, nil
+}
+
+func (s *PostgresStore) CreateRole(role *models.Role) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if role.ID == "" {
+		query := `
+			INSERT INTO roles (name, display_name, description, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5)
+			RETURNING id`
+
+		err := s.db.QueryRowContext(ctx, query,
+			role.Name, role.DisplayName, role.Description,
+			role.CreatedAt, role.UpdatedAt,
+		).Scan(&role.ID)
+		
+		if err != nil {
+			return fmt.Errorf("failed to create role: %w", err)
+		}
+	} else {
+		query := `
+			INSERT INTO roles (id, name, display_name, description, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6)`
+
+		_, err := s.db.ExecContext(ctx, query,
+			role.ID, role.Name, role.DisplayName, role.Description,
+			role.CreatedAt, role.UpdatedAt,
+		)
+		
+		if err != nil {
+			return fmt.Errorf("failed to create role: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func (s *PostgresStore) UpdateRole(role *models.Role) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	query := `
+		UPDATE roles 
+		SET name = $2, display_name = $3, description = $4, updated_at = $5
+		WHERE id = $1`
+
+	result, err := s.db.ExecContext(ctx, query,
+		role.ID, role.Name, role.DisplayName, role.Description, role.UpdatedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update role: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return ErrNotFound
+	}
+
+	return nil
+}
+
+func (s *PostgresStore) DeleteRole(id string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	query := `DELETE FROM roles WHERE id = $1`
+	result, err := s.db.ExecContext(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete role: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return ErrNotFound
+	}
+
+	return nil
+}
+
+// User-Role Association Methods
+
+func (s *PostgresStore) AssignRoleToUser(userID, roleID string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	query := `
+		INSERT INTO user_roles (user_id, role_id, created_at)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (user_id, role_id) DO NOTHING`
+
+	_, err := s.db.ExecContext(ctx, query, userID, roleID, time.Now())
+	if err != nil {
+		return fmt.Errorf("failed to assign role to user: %w", err)
+	}
+
+	return nil
+}
+
+func (s *PostgresStore) RemoveRoleFromUser(userID, roleID string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	query := `DELETE FROM user_roles WHERE user_id = $1 AND role_id = $2`
+	result, err := s.db.ExecContext(ctx, query, userID, roleID)
+	if err != nil {
+		return fmt.Errorf("failed to remove role from user: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return ErrNotFound
+	}
+
+	return nil
+}
+
+func (s *PostgresStore) GetUserRoles(userID string) ([]*models.Role, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	query := `
+		SELECT r.id, r.name, r.display_name, r.description, r.created_at, r.updated_at
+		FROM roles r
+		INNER JOIN user_roles ur ON r.id = ur.role_id
+		WHERE ur.user_id = $1
+		ORDER BY r.name`
+
+	rows, err := s.db.QueryContext(ctx, query, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user roles: %w", err)
+	}
+	defer rows.Close()
+
+	var roles []*models.Role
+	for rows.Next() {
+		role := &models.Role{}
+		err := rows.Scan(
+			&role.ID, &role.Name, &role.DisplayName, &role.Description,
+			&role.CreatedAt, &role.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan role: %w", err)
+		}
+
+		// Load role permissions
+		permissions, err := s.GetRolePermissions(role.ID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load role permissions: %w", err)
+		}
+		role.Permissions = permissions
+
+		roles = append(roles, role)
+	}
+
+	return roles, nil
+}
+
+// Permission Methods
+
+func (s *PostgresStore) GetPermission(id string) (*models.Permission, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	query := `
+		SELECT id, name, resource, action, description
+		FROM permissions WHERE id = $1`
+
+	permission := &models.Permission{}
+	err := s.db.QueryRowContext(ctx, query, id).Scan(
+		&permission.ID, &permission.Name, &permission.Resource,
+		&permission.Action, &permission.Description,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("failed to get permission: %w", err)
+	}
+
+	return permission, nil
+}
+
+func (s *PostgresStore) ListPermissions() ([]*models.Permission, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	query := `
+		SELECT id, name, resource, action, description
+		FROM permissions ORDER BY resource, action`
+
+	rows, err := s.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list permissions: %w", err)
+	}
+	defer rows.Close()
+
+	var permissions []*models.Permission
+	for rows.Next() {
+		permission := &models.Permission{}
+		err := rows.Scan(
+			&permission.ID, &permission.Name, &permission.Resource,
+			&permission.Action, &permission.Description,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan permission: %w", err)
+		}
+		permissions = append(permissions, permission)
+	}
+
+	return permissions, nil
+}
+
+func (s *PostgresStore) GetRolePermissions(roleID string) ([]*models.Permission, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	query := `
+		SELECT p.id, p.name, p.resource, p.action, p.description
+		FROM permissions p
+		INNER JOIN role_permissions rp ON p.id = rp.permission_id
+		WHERE rp.role_id = $1
+		ORDER BY p.resource, p.action`
+
+	rows, err := s.db.QueryContext(ctx, query, roleID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get role permissions: %w", err)
+	}
+	defer rows.Close()
+
+	var permissions []*models.Permission
+	for rows.Next() {
+		permission := &models.Permission{}
+		err := rows.Scan(
+			&permission.ID, &permission.Name, &permission.Resource,
+			&permission.Action, &permission.Description,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan permission: %w", err)
+		}
+		permissions = append(permissions, permission)
+	}
+
+	return permissions, nil
+}
+
+// User Activity Methods
+
+func (s *PostgresStore) LogUserActivity(activity *models.UserActivity) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Convert metadata to JSON
+	metadataJSON, err := json.Marshal(activity.Metadata)
+	if err != nil {
+		return fmt.Errorf("failed to marshal metadata: %w", err)
+	}
+
+	if activity.ID == "" {
+		query := `
+			INSERT INTO user_activities (user_id, action, resource, resource_id, ip_address, user_agent, metadata, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			RETURNING id`
+
+		err := s.db.QueryRowContext(ctx, query,
+			activity.UserID, activity.Action, activity.Resource, activity.ResourceID,
+			activity.IPAddress, activity.UserAgent, metadataJSON, activity.CreatedAt,
+		).Scan(&activity.ID)
+		
+		if err != nil {
+			return fmt.Errorf("failed to log user activity: %w", err)
+		}
+	} else {
+		query := `
+			INSERT INTO user_activities (id, user_id, action, resource, resource_id, ip_address, user_agent, metadata, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
+
+		_, err := s.db.ExecContext(ctx, query,
+			activity.ID, activity.UserID, activity.Action, activity.Resource, activity.ResourceID,
+			activity.IPAddress, activity.UserAgent, metadataJSON, activity.CreatedAt,
+		)
+		
+		if err != nil {
+			return fmt.Errorf("failed to log user activity: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func (s *PostgresStore) GetUserActivities(userID string, limit int) ([]*models.UserActivity, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if limit <= 0 {
+		limit = 100
+	}
+
+	query := `
+		SELECT id, user_id, action, resource, resource_id, ip_address, user_agent, metadata, created_at
+		FROM user_activities 
+		WHERE user_id = $1 
+		ORDER BY created_at DESC 
+		LIMIT $2`
+
+	rows, err := s.db.QueryContext(ctx, query, userID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user activities: %w", err)
+	}
+	defer rows.Close()
+
+	var activities []*models.UserActivity
+	for rows.Next() {
+		activity := &models.UserActivity{}
+		var metadataJSON []byte
+
+		err := rows.Scan(
+			&activity.ID, &activity.UserID, &activity.Action, &activity.Resource,
+			&activity.ResourceID, &activity.IPAddress, &activity.UserAgent,
+			&metadataJSON, &activity.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan user activity: %w", err)
+		}
+
+		// Unmarshal metadata
+		if len(metadataJSON) > 0 {
+			err = json.Unmarshal(metadataJSON, &activity.Metadata)
+			if err != nil {
+				return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
+			}
+		}
+
+		activities = append(activities, activity)
+	}
+
+	return activities, nil
+}
+
 // HealthCheck tests the database connection
 func (s *PostgresStore) HealthCheck() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

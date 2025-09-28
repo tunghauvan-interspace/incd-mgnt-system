@@ -69,8 +69,12 @@ func main() {
 	alertService := services.NewAlertService(store, incidentService, metricsService)
 	notificationService := services.NewNotificationService(cfg)
 
+	// Initialize authentication services
+	authService := services.NewAuthService(cfg.JWTSecret, cfg.JWTExpiration, cfg.RefreshExpiration)
+	userService := services.NewUserService(store, authService, logger)
+
 	// Initialize handlers
-	handler := handlers.NewHandler(incidentService, alertService, notificationService, metricsService, logger, store)
+	handler := handlers.NewHandler(incidentService, alertService, notificationService, metricsService, logger, store, userService, authService)
 
 	// Setup middleware
 	mux := http.NewServeMux()

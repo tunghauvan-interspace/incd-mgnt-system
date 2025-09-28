@@ -3,7 +3,9 @@ package storage
 import (
 	"errors"
 	"sync"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/tunghauvan-interspace/incd-mgnt-system/internal/models"
 )
 
@@ -48,6 +50,38 @@ type Store interface {
 	UpdateOnCallSchedule(schedule *models.OnCallSchedule) error
 	DeleteOnCallSchedule(id string) error
 
+	// User Management
+	GetUser(id string) (*models.User, error)
+	GetUserByUsername(username string) (*models.User, error)
+	GetUserByEmail(email string) (*models.User, error)
+	ListUsers() ([]*models.User, error)
+	CreateUser(user *models.User) error
+	UpdateUser(user *models.User) error
+	DeleteUser(id string) error
+	UpdateLastLogin(userID string, timestamp time.Time) error
+
+	// Role Management
+	GetRole(id string) (*models.Role, error)
+	GetRoleByName(name string) (*models.Role, error)
+	ListRoles() ([]*models.Role, error)
+	CreateRole(role *models.Role) error
+	UpdateRole(role *models.Role) error
+	DeleteRole(id string) error
+
+	// User-Role Associations
+	AssignRoleToUser(userID, roleID string) error
+	RemoveRoleFromUser(userID, roleID string) error
+	GetUserRoles(userID string) ([]*models.Role, error)
+	
+	// Permissions
+	GetPermission(id string) (*models.Permission, error)
+	ListPermissions() ([]*models.Permission, error)
+	GetRolePermissions(roleID string) ([]*models.Permission, error)
+
+	// User Activity Logging
+	LogUserActivity(activity *models.UserActivity) error
+	GetUserActivities(userID string, limit int) ([]*models.UserActivity, error)
+
 	// Close closes the store connection
 	Close() error
 }
@@ -59,6 +93,15 @@ type MemoryStore struct {
 	notificationChannels map[string]*models.NotificationChannel
 	escalationPolicies   map[string]*models.EscalationPolicy
 	onCallSchedules      map[string]*models.OnCallSchedule
+	users                map[string]*models.User
+	usersByUsername      map[string]*models.User
+	usersByEmail         map[string]*models.User
+	roles                map[string]*models.Role
+	rolesByName          map[string]*models.Role
+	permissions          map[string]*models.Permission
+	userRoles            map[string][]string // userID -> roleIDs
+	rolePermissions      map[string][]string // roleID -> permissionIDs
+	userActivities       map[string][]*models.UserActivity // userID -> activities
 	mu                   sync.RWMutex
 }
 
@@ -70,6 +113,15 @@ func NewMemoryStore() (*MemoryStore, error) {
 		notificationChannels: make(map[string]*models.NotificationChannel),
 		escalationPolicies:   make(map[string]*models.EscalationPolicy),
 		onCallSchedules:      make(map[string]*models.OnCallSchedule),
+		users:                make(map[string]*models.User),
+		usersByUsername:      make(map[string]*models.User),
+		usersByEmail:         make(map[string]*models.User),
+		roles:                make(map[string]*models.Role),
+		rolesByName:          make(map[string]*models.Role),
+		permissions:          make(map[string]*models.Permission),
+		userRoles:            make(map[string][]string),
+		rolePermissions:      make(map[string][]string),
+		userActivities:       make(map[string][]*models.UserActivity),
 	}, nil
 }
 
@@ -341,4 +393,422 @@ func (s *MemoryStore) DeleteOnCallSchedule(id string) error {
 // Close closes the memory store (no-op for memory store)
 func (s *MemoryStore) Close() error {
 	return nil
+}
+
+// User Management Methods
+
+func (s *MemoryStore) GetUser(id string) (*models.User, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	user, exists := s.users[id]
+	if !exists {
+		return nil, ErrNotFound
+	}
+	
+	// Load user roles
+	userCopy := *user
+	roles, _ := s.getUserRolesInternal(id)
+	userCopy.Roles = roles
+	
+	return &userCopy, nil
+}
+
+func (s *MemoryStore) GetUserByUsername(username string) (*models.User, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	user, exists := s.usersByUsername[username]
+	if !exists {
+		return nil, ErrNotFound
+	}
+	
+	// Load user roles
+	userCopy := *user
+	roles, _ := s.getUserRolesInternal(user.ID)
+	userCopy.Roles = roles
+	
+	return &userCopy, nil
+}
+
+func (s *MemoryStore) GetUserByEmail(email string) (*models.User, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	user, exists := s.usersByEmail[email]
+	if !exists {
+		return nil, ErrNotFound
+	}
+	
+	// Load user roles
+	userCopy := *user
+	roles, _ := s.getUserRolesInternal(user.ID)
+	userCopy.Roles = roles
+	
+	return &userCopy, nil
+}
+
+func (s *MemoryStore) ListUsers() ([]*models.User, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	users := make([]*models.User, 0, len(s.users))
+	for _, user := range s.users {
+		userCopy := *user
+		roles, _ := s.getUserRolesInternal(user.ID)
+		userCopy.Roles = roles
+		users = append(users, &userCopy)
+	}
+	return users, nil
+}
+
+func (s *MemoryStore) CreateUser(user *models.User) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if user.ID == "" {
+		user.ID = uuid.New().String()
+	}
+
+	// Check for existing username and email
+	if _, exists := s.usersByUsername[user.Username]; exists {
+		return errors.New("username already exists")
+	}
+	if _, exists := s.usersByEmail[user.Email]; exists {
+		return errors.New("email already exists")
+	}
+
+	s.users[user.ID] = user
+	s.usersByUsername[user.Username] = user
+	s.usersByEmail[user.Email] = user
+	return nil
+}
+
+func (s *MemoryStore) UpdateUser(user *models.User) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	existingUser, exists := s.users[user.ID]
+	if !exists {
+		return ErrNotFound
+	}
+
+	// Remove old username/email mappings
+	delete(s.usersByUsername, existingUser.Username)
+	delete(s.usersByEmail, existingUser.Email)
+
+	// Check for conflicts with new username/email
+	if user.Username != existingUser.Username {
+		if _, exists := s.usersByUsername[user.Username]; exists {
+			return errors.New("username already exists")
+		}
+	}
+	if user.Email != existingUser.Email {
+		if _, exists := s.usersByEmail[user.Email]; exists {
+			return errors.New("email already exists")
+		}
+	}
+
+	// Update mappings
+	s.users[user.ID] = user
+	s.usersByUsername[user.Username] = user
+	s.usersByEmail[user.Email] = user
+	return nil
+}
+
+func (s *MemoryStore) DeleteUser(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	user, exists := s.users[id]
+	if !exists {
+		return ErrNotFound
+	}
+
+	delete(s.users, id)
+	delete(s.usersByUsername, user.Username)
+	delete(s.usersByEmail, user.Email)
+	delete(s.userRoles, id)
+	delete(s.userActivities, id)
+	return nil
+}
+
+func (s *MemoryStore) UpdateLastLogin(userID string, timestamp time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	user, exists := s.users[userID]
+	if !exists {
+		return ErrNotFound
+	}
+
+	user.LastLogin = &timestamp
+	return nil
+}
+
+// Role Management Methods
+
+func (s *MemoryStore) GetRole(id string) (*models.Role, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	role, exists := s.roles[id]
+	if !exists {
+		return nil, ErrNotFound
+	}
+
+	// Load role permissions
+	roleCopy := *role
+	permissions, _ := s.getRolePermissionsInternal(id)
+	roleCopy.Permissions = permissions
+
+	return &roleCopy, nil
+}
+
+func (s *MemoryStore) GetRoleByName(name string) (*models.Role, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	role, exists := s.rolesByName[name]
+	if !exists {
+		return nil, ErrNotFound
+	}
+
+	// Load role permissions
+	roleCopy := *role
+	permissions, _ := s.getRolePermissionsInternal(role.ID)
+	roleCopy.Permissions = permissions
+
+	return &roleCopy, nil
+}
+
+func (s *MemoryStore) ListRoles() ([]*models.Role, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	roles := make([]*models.Role, 0, len(s.roles))
+	for _, role := range s.roles {
+		roleCopy := *role
+		permissions, _ := s.getRolePermissionsInternal(role.ID)
+		roleCopy.Permissions = permissions
+		roles = append(roles, &roleCopy)
+	}
+	return roles, nil
+}
+
+func (s *MemoryStore) CreateRole(role *models.Role) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if role.ID == "" {
+		role.ID = uuid.New().String()
+	}
+
+	if _, exists := s.rolesByName[role.Name]; exists {
+		return errors.New("role name already exists")
+	}
+
+	s.roles[role.ID] = role
+	s.rolesByName[role.Name] = role
+	return nil
+}
+
+func (s *MemoryStore) UpdateRole(role *models.Role) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	existingRole, exists := s.roles[role.ID]
+	if !exists {
+		return ErrNotFound
+	}
+
+	// Remove old name mapping
+	delete(s.rolesByName, existingRole.Name)
+
+	// Check for name conflict
+	if role.Name != existingRole.Name {
+		if _, exists := s.rolesByName[role.Name]; exists {
+			return errors.New("role name already exists")
+		}
+	}
+
+	s.roles[role.ID] = role
+	s.rolesByName[role.Name] = role
+	return nil
+}
+
+func (s *MemoryStore) DeleteRole(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	role, exists := s.roles[id]
+	if !exists {
+		return ErrNotFound
+	}
+
+	delete(s.roles, id)
+	delete(s.rolesByName, role.Name)
+	delete(s.rolePermissions, id)
+
+	// Remove role from all users
+	for userID, roleIDs := range s.userRoles {
+		newRoleIDs := make([]string, 0)
+		for _, roleID := range roleIDs {
+			if roleID != id {
+				newRoleIDs = append(newRoleIDs, roleID)
+			}
+		}
+		s.userRoles[userID] = newRoleIDs
+	}
+
+	return nil
+}
+
+// User-Role Association Methods
+
+func (s *MemoryStore) AssignRoleToUser(userID, roleID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Verify user and role exist
+	if _, exists := s.users[userID]; !exists {
+		return ErrNotFound
+	}
+	if _, exists := s.roles[roleID]; !exists {
+		return ErrNotFound
+	}
+
+	// Check if already assigned
+	roleIDs := s.userRoles[userID]
+	for _, id := range roleIDs {
+		if id == roleID {
+			return nil // Already assigned
+		}
+	}
+
+	s.userRoles[userID] = append(roleIDs, roleID)
+	return nil
+}
+
+func (s *MemoryStore) RemoveRoleFromUser(userID, roleID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	roleIDs := s.userRoles[userID]
+	newRoleIDs := make([]string, 0)
+	found := false
+
+	for _, id := range roleIDs {
+		if id != roleID {
+			newRoleIDs = append(newRoleIDs, id)
+		} else {
+			found = true
+		}
+	}
+
+	if !found {
+		return ErrNotFound
+	}
+
+	s.userRoles[userID] = newRoleIDs
+	return nil
+}
+
+func (s *MemoryStore) GetUserRoles(userID string) ([]*models.Role, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.getUserRolesInternal(userID)
+}
+
+func (s *MemoryStore) getUserRolesInternal(userID string) ([]*models.Role, error) {
+	roleIDs := s.userRoles[userID]
+	roles := make([]*models.Role, 0, len(roleIDs))
+
+	for _, roleID := range roleIDs {
+		if role, exists := s.roles[roleID]; exists {
+			roleCopy := *role
+			permissions, _ := s.getRolePermissionsInternal(roleID)
+			roleCopy.Permissions = permissions
+			roles = append(roles, &roleCopy)
+		}
+	}
+
+	return roles, nil
+}
+
+// Permission Methods
+
+func (s *MemoryStore) GetPermission(id string) (*models.Permission, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	permission, exists := s.permissions[id]
+	if !exists {
+		return nil, ErrNotFound
+	}
+	return permission, nil
+}
+
+func (s *MemoryStore) ListPermissions() ([]*models.Permission, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	permissions := make([]*models.Permission, 0, len(s.permissions))
+	for _, permission := range s.permissions {
+		permissions = append(permissions, permission)
+	}
+	return permissions, nil
+}
+
+func (s *MemoryStore) GetRolePermissions(roleID string) ([]*models.Permission, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.getRolePermissionsInternal(roleID)
+}
+
+func (s *MemoryStore) getRolePermissionsInternal(roleID string) ([]*models.Permission, error) {
+	permissionIDs := s.rolePermissions[roleID]
+	permissions := make([]*models.Permission, 0, len(permissionIDs))
+
+	for _, permID := range permissionIDs {
+		if permission, exists := s.permissions[permID]; exists {
+			permissions = append(permissions, permission)
+		}
+	}
+
+	return permissions, nil
+}
+
+// User Activity Methods
+
+func (s *MemoryStore) LogUserActivity(activity *models.UserActivity) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if activity.ID == "" {
+		activity.ID = uuid.New().String()
+	}
+
+	s.userActivities[activity.UserID] = append(s.userActivities[activity.UserID], activity)
+	return nil
+}
+
+func (s *MemoryStore) GetUserActivities(userID string, limit int) ([]*models.UserActivity, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	activities := s.userActivities[userID]
+	if limit <= 0 || limit > len(activities) {
+		limit = len(activities)
+	}
+
+	// Return most recent activities first
+	result := make([]*models.UserActivity, 0, limit)
+	for i := len(activities) - 1; i >= 0 && len(result) < limit; i-- {
+		result = append(result, activities[i])
+	}
+
+	return result, nil
 }
