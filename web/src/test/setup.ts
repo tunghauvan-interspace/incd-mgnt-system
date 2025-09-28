@@ -4,7 +4,7 @@ import type { config } from '@vue/test-utils'
 // Mock window.matchMedia
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
-  value: vi.fn().mockImplementation(query => ({
+  value: vi.fn().mockImplementation((query) => ({
     matches: false,
     media: query,
     onchange: null,
@@ -12,8 +12,8 @@ Object.defineProperty(window, 'matchMedia', {
     removeListener: vi.fn(), // deprecated
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-  })),
+    dispatchEvent: vi.fn()
+  }))
 })
 
 // Mock CSS variables
@@ -40,7 +40,7 @@ const mockCanvasContext: any = {
   fillRect: vi.fn(),
   clearRect: vi.fn(),
   getImageData: vi.fn(() => ({
-    data: new Array(4).fill(0),
+    data: new Array(4).fill(0)
   })),
   putImageData: vi.fn(),
   createImageData: vi.fn(() => []),
@@ -58,11 +58,11 @@ const mockCanvasContext: any = {
   arc: vi.fn(),
   fillText: vi.fn(),
   getContext: vi.fn(() => mockCanvasContext),
-  toDataURL: vi.fn(() => ''),
+  toDataURL: vi.fn(() => '')
 }
 
 Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
-  value: vi.fn(() => mockCanvasContext),
+  value: vi.fn(() => mockCanvasContext)
 })
 
 // Global test configuration for Vue Test Utils
@@ -73,9 +73,9 @@ const globalConfig: typeof config = {
       DoughnutChart: {
         template: '<div class="mock-doughnut-chart">{{ title }}</div>',
         props: ['data', 'title']
-      },
-    },
-  },
+      }
+    }
+  }
 }
 
 export { globalConfig as config }

@@ -3,7 +3,8 @@ import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
 
 // Determine API target for dev proxy. When running inside Docker, use 'backend'.
-const apiTarget = process.env.VITE_API_TARGET || process.env.VITE_API_HOST || 'http://localhost:8080'
+const apiTarget =
+  process.env.VITE_API_TARGET || process.env.VITE_API_HOST || 'http://localhost:8080'
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -58,6 +59,7 @@ export default defineConfig({
     }
   },
   server: {
+    host: '0.0.0.0',
     port: 3000,
     proxy: {
       '/api': {
@@ -68,6 +70,6 @@ export default defineConfig({
   },
   // Bundle analyzer (can be enabled when needed)
   define: {
-    __VUE_PROD_DEVTOOLS__: false,
+    __VUE_PROD_DEVTOOLS__: false
   }
 })

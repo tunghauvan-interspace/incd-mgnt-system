@@ -1,9 +1,9 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '@playwright/test'
 
 test.describe('Dashboard Page', () => {
   test('should display dashboard with metrics', async ({ page }) => {
     // Mock the API response for metrics
-    await page.route('/api/metrics', async route => {
+    await page.route('/api/metrics', async (route) => {
       await route.fulfill({
         json: {
           total_incidents: 100,
@@ -13,39 +13,39 @@ test.describe('Dashboard Page', () => {
           incidents_by_status: { open: 15, acknowledged: 5, resolved: 80 },
           incidents_by_severity: { critical: 3, high: 12, medium: 50, low: 35 }
         }
-      });
-    });
+      })
+    })
 
-    await page.goto('/');
+    await page.goto('/')
 
     // Check page title
-    await expect(page).toHaveTitle(/Incident Management/);
+    await expect(page).toHaveTitle(/Incident Management/)
 
     // Check header navigation
-    await expect(page.locator('h2')).toContainText('Dashboard');
+    await expect(page.locator('h2')).toContainText('Dashboard')
 
     // Wait for metrics to load
-    await expect(page.locator('.metric-card')).toHaveCount(4);
+    await expect(page.locator('.metric-card')).toHaveCount(4)
 
     // Check metric values
-    await expect(page.locator('.metric-card').nth(0)).toContainText('Total Incidents');
-    await expect(page.locator('.metric-card').nth(0)).toContainText('100');
+    await expect(page.locator('.metric-card').nth(0)).toContainText('Total Incidents')
+    await expect(page.locator('.metric-card').nth(0)).toContainText('100')
 
-    await expect(page.locator('.metric-card').nth(1)).toContainText('Open Incidents');
-    await expect(page.locator('.metric-card').nth(1)).toContainText('15');
+    await expect(page.locator('.metric-card').nth(1)).toContainText('Open Incidents')
+    await expect(page.locator('.metric-card').nth(1)).toContainText('15')
 
-    await expect(page.locator('.metric-card').nth(2)).toContainText('MTTA');
-    await expect(page.locator('.metric-card').nth(3)).toContainText('MTTR');
+    await expect(page.locator('.metric-card').nth(2)).toContainText('MTTA')
+    await expect(page.locator('.metric-card').nth(3)).toContainText('MTTR')
 
     // Check charts are present
-    await expect(page.locator('.charts-section')).toBeVisible();
-  });
+    await expect(page.locator('.charts-section')).toBeVisible()
+  })
 
   test('should handle refresh functionality', async ({ page }) => {
-    let apiCallCount = 0;
-    
-    await page.route('/api/metrics', async route => {
-      apiCallCount++;
+    let apiCallCount = 0
+
+    await page.route('/api/metrics', async (route) => {
+      apiCallCount++
       await route.fulfill({
         json: {
           total_incidents: 100 + apiCallCount * 10,
@@ -55,32 +55,32 @@ test.describe('Dashboard Page', () => {
           incidents_by_status: { open: 15, acknowledged: 5, resolved: 80 },
           incidents_by_severity: { critical: 3, high: 12, medium: 50, low: 35 }
         }
-      });
-    });
+      })
+    })
 
-    await page.goto('/');
+    await page.goto('/')
 
     // Wait for initial load
-    await expect(page.locator('.metric-card').nth(0)).toContainText('110');
+    await expect(page.locator('.metric-card').nth(0)).toContainText('110')
 
     // Click refresh button
-    await page.click('.refresh-btn button');
+    await page.click('.refresh-btn button')
 
     // Check that metrics updated
-    await expect(page.locator('.metric-card').nth(0)).toContainText('120');
-    
-    expect(apiCallCount).toBe(2);
-  });
+    await expect(page.locator('.metric-card').nth(0)).toContainText('120')
+
+    expect(apiCallCount).toBe(2)
+  })
 
   test('should show loading state', async ({ page }) => {
     // Create a promise that we can resolve manually
-    let resolveMetrics: (value: any) => void;
-    const metricsPromise = new Promise(resolve => {
-      resolveMetrics = resolve;
-    });
+    let resolveMetrics: (value: any) => void
+    const metricsPromise = new Promise((resolve) => {
+      resolveMetrics = resolve
+    })
 
-    await page.route('/api/metrics', async route => {
-      await metricsPromise;
+    await page.route('/api/metrics', async (route) => {
+      await metricsPromise
       await route.fulfill({
         json: {
           total_incidents: 50,
@@ -90,43 +90,43 @@ test.describe('Dashboard Page', () => {
           incidents_by_status: { open: 10, acknowledged: 5, resolved: 35 },
           incidents_by_severity: { critical: 2, high: 8, medium: 25, low: 15 }
         }
-      });
-    });
+      })
+    })
 
-    await page.goto('/');
+    await page.goto('/')
 
     // Check loading state
-    await expect(page.locator('.loading')).toContainText('Loading dashboard...');
-    await expect(page.locator('button')).toContainText('Loading...');
-    await expect(page.locator('button')).toBeDisabled();
+    await expect(page.locator('.loading')).toContainText('Loading dashboard...')
+    await expect(page.locator('button')).toContainText('Loading...')
+    await expect(page.locator('button')).toBeDisabled()
 
     // Resolve the metrics promise
-    resolveMetrics(true);
+    resolveMetrics(true)
 
     // Wait for loading to complete
-    await expect(page.locator('.metric-card').nth(0)).toContainText('50');
-    await expect(page.locator('.loading')).not.toBeVisible();
-  });
+    await expect(page.locator('.metric-card').nth(0)).toContainText('50')
+    await expect(page.locator('.loading')).not.toBeVisible()
+  })
 
   test('should handle API errors gracefully', async ({ page }) => {
-    await page.route('/api/metrics', async route => {
+    await page.route('/api/metrics', async (route) => {
       await route.fulfill({
         status: 500,
         body: 'Internal Server Error'
-      });
-    });
+      })
+    })
 
-    await page.goto('/');
+    await page.goto('/')
 
     // Check error message
-    await expect(page.locator('.error-message')).toContainText('Error loading dashboard data');
-    await expect(page.locator('.metrics-grid')).not.toBeVisible();
-  });
-});
+    await expect(page.locator('.error-message')).toContainText('Error loading dashboard data')
+    await expect(page.locator('.metrics-grid')).not.toBeVisible()
+  })
+})
 
 test.describe('Mobile Responsiveness', () => {
   test('should be mobile responsive', async ({ page }) => {
-    await page.route('/api/metrics', async route => {
+    await page.route('/api/metrics', async (route) => {
       await route.fulfill({
         json: {
           total_incidents: 25,
@@ -136,26 +136,26 @@ test.describe('Mobile Responsiveness', () => {
           incidents_by_status: { open: 5, acknowledged: 2, resolved: 18 },
           incidents_by_severity: { critical: 1, high: 4, medium: 12, low: 8 }
         }
-      });
-    });
+      })
+    })
 
     // Set mobile viewport
-    await page.setViewportSize({ width: 375, height: 667 });
-    await page.goto('/');
+    await page.setViewportSize({ width: 375, height: 667 })
+    await page.goto('/')
 
     // Check that the dashboard is responsive
-    await expect(page.locator('.dashboard')).toBeVisible();
-    await expect(page.locator('.metric-card')).toHaveCount(4);
+    await expect(page.locator('.dashboard')).toBeVisible()
+    await expect(page.locator('.metric-card')).toHaveCount(4)
 
     // Check that metric cards stack properly on mobile
-    const metricCards = page.locator('.metric-card');
-    const firstCard = metricCards.nth(0);
-    const secondCard = metricCards.nth(1);
+    const metricCards = page.locator('.metric-card')
+    const firstCard = metricCards.nth(0)
+    const secondCard = metricCards.nth(1)
 
-    const firstCardBox = await firstCard.boundingBox();
-    const secondCardBox = await secondCard.boundingBox();
+    const firstCardBox = await firstCard.boundingBox()
+    const secondCardBox = await secondCard.boundingBox()
 
     // On mobile, cards should stack vertically (second card should be below first)
-    expect(secondCardBox?.y).toBeGreaterThan(firstCardBox?.y || 0);
-  });
-});
+    expect(secondCardBox?.y).toBeGreaterThan(firstCardBox?.y || 0)
+  })
+})

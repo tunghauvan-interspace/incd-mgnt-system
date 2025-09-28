@@ -1,5 +1,6 @@
 /* Design Tokens - CSS Variables for consistent theming */
 :root {
+  color-scheme: light;
   /* Colors */
   --color-primary: #3498db;
   --color-primary-hover: #2980b9;
@@ -144,19 +145,38 @@
   --breakpoint-xl: 1280px;
 }
 
-/* Dark mode support (optional for future implementation) */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-bg-primary: #1f2937;
-    --color-bg-secondary: #111827;
-    --color-bg-muted: #374151;
-    
-    --color-text-primary: #f9fafb;
-    --color-text-secondary: #d1d5db;
-    --color-text-muted: #9ca3af;
-    
-    --color-border-light: #374151;
-    --color-border-medium: #4b5563;
-    --color-border-dark: #6b7280;
-  }
+/* Optional dark mode palette (activated by setting data-theme="dark" on <html> or <body>) */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --color-bg-primary: #1f2937;
+  --color-bg-secondary: #111827;
+  --color-bg-muted: #374151;
+
+  --color-text-primary: #f9fafb;
+  --color-text-secondary: #d1d5db;
+  --color-text-muted: #9ca3af;
+
+  --color-border-light: #374151;
+  --color-border-medium: #4b5563;
+  --color-border-dark: #6b7280;
+
+  /* Dark mode status colors - slightly brighter for better contrast */
+  --color-status-open: #ef4444;
+  --color-status-open-bg: #451a1a;
+  --color-status-acknowledged: #f59e0b;
+  --color-status-acknowledged-bg: #451a03;
+  --color-status-resolved: #10b981;
+  --color-status-resolved-bg: #064e3b;
+
+  /* Dark mode severity colors - adjusted for dark backgrounds */
+  --color-severity-critical: #dc2626;
+  --color-severity-critical-bg: #7f1d1d;
+  --color-severity-high: #ea580c;
+  --color-severity-high-bg: #9a3412;
+  --color-severity-medium: #d97706;
+  --color-severity-medium-bg: #78350f;
+  --color-severity-low: #0284c7;
+  --color-severity-low-bg: #0c4a6e;
+  --color-severity-info: #6b7280;
+  --color-severity-info-bg: #374151;
 }

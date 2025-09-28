@@ -1,5 +1,13 @@
 import axios from 'axios'
-import type { Incident, Alert, Metrics, AcknowledgeIncidentRequest } from '@/types/api'
+import type {
+  Incident,
+  Alert,
+  Metrics,
+  AcknowledgeIncidentRequest,
+  LoginRequest,
+  RegisterRequest,
+  AuthResponse
+} from '@/types/api'
 
 const api = axios.create({
   baseURL: '/api',
@@ -9,10 +17,17 @@ const api = axios.create({
   }
 })
 
-// Request interceptor for logging
+// Request interceptor for logging and auth
 api.interceptors.request.use(
   (config) => {
     console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`)
+
+    // Add auth token if available
+    const token = localStorage.getItem('auth_token')
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
+
     return config
   },
   (error) => {
@@ -57,6 +72,20 @@ export const alertAPI = {
 export const metricsAPI = {
   // Get metrics
   getMetrics: (): Promise<Metrics> => api.get<Metrics>('/metrics').then((res) => res.data)
+}
+
+export const authAPI = {
+  // Login
+  login: (data: LoginRequest): Promise<AuthResponse> =>
+    api.post<AuthResponse>('/auth/login', data).then((res) => res.data),
+
+  // Register
+  register: (data: RegisterRequest): Promise<AuthResponse> =>
+    api.post<AuthResponse>('/auth/register', data).then((res) => res.data),
+
+  // Refresh token
+  refreshToken: (refreshToken: string): Promise<AuthResponse> =>
+    api.post<AuthResponse>('/auth/refresh', { refresh_token: refreshToken }).then((res) => res.data)
 }
 
 export default api

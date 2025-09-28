@@ -4,6 +4,10 @@
 /* Import responsive design system */
 @import './responsive.css';
 
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* Reset and Base Styles */
 * {
   margin: 0;

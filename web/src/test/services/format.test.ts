@@ -6,7 +6,7 @@ describe('Format Utilities', () => {
     it('formats valid date string correctly', () => {
       const dateString = '2023-12-25T10:30:00.000Z'
       const result = formatDate(dateString)
-      
+
       // Result will vary by locale, but should contain date elements
       expect(result).toBeTruthy()
       expect(result.length).toBeGreaterThan(0)
@@ -62,7 +62,9 @@ describe('Format Utilities', () => {
 
   describe('escapeHtml', () => {
     it('escapes HTML entities correctly', () => {
-      expect(escapeHtml('<script>alert("xss")</script>')).toBe('&lt;script&gt;alert("xss")&lt;/script&gt;')
+      expect(escapeHtml('<script>alert("xss")</script>')).toBe(
+        '&lt;script&gt;alert("xss")&lt;/script&gt;'
+      )
       expect(escapeHtml('Tom & Jerry')).toBe('Tom &amp; Jerry')
       expect(escapeHtml('"quoted text"')).toBe('"quoted text"')
     })

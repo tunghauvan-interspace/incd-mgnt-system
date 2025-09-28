@@ -81,7 +81,10 @@ describe('API Services', () => {
       const { incidentAPI } = await import('@/services/api')
       await incidentAPI.acknowledgeIncident('1', acknowledgeData)
 
-      expect(mockAxiosInstance.put).toHaveBeenCalledWith('/incidents/1/acknowledge', acknowledgeData)
+      expect(mockAxiosInstance.put).toHaveBeenCalledWith(
+        '/incidents/1/acknowledge',
+        acknowledgeData
+      )
     })
 
     it('resolveIncident should resolve an incident', async () => {

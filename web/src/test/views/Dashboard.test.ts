@@ -41,7 +41,7 @@ describe('Dashboard', () => {
 
   it('renders dashboard header correctly', () => {
     mockGetMetrics.mockResolvedValueOnce(mockMetrics)
-    
+
     const wrapper = mount(Dashboard, {
       global: {
         stubs: {
@@ -59,7 +59,7 @@ describe('Dashboard', () => {
 
   it('shows loading state initially', async () => {
     let resolvePromise: (value: Metrics) => void
-    const promise = new Promise<Metrics>(resolve => {
+    const promise = new Promise<Metrics>((resolve) => {
       resolvePromise = resolve
     })
     mockGetMetrics.mockReturnValueOnce(promise)
@@ -100,12 +100,12 @@ describe('Dashboard', () => {
     })
 
     // Wait for the component to finish loading
-    await new Promise(resolve => setTimeout(resolve, 10))
+    await new Promise((resolve) => setTimeout(resolve, 10))
     await wrapper.vm.$nextTick()
 
     expect(wrapper.find('.loading').exists()).toBe(false)
     expect(wrapper.find('.metrics-grid').exists()).toBe(true)
-    
+
     const metricCards = wrapper.findAll('.metric-card')
     expect(metricCards).toHaveLength(4)
 
@@ -143,7 +143,7 @@ describe('Dashboard', () => {
     })
 
     // Wait for the error to be handled
-    await new Promise(resolve => setTimeout(resolve, 10))
+    await new Promise((resolve) => setTimeout(resolve, 10))
     await wrapper.vm.$nextTick()
 
     expect(wrapper.find('.error-message').exists()).toBe(true)
@@ -183,7 +183,7 @@ describe('Dashboard', () => {
     })
 
     // Wait for initial load
-    await new Promise(resolve => setTimeout(resolve, 10))
+    await new Promise((resolve) => setTimeout(resolve, 10))
     await wrapper.vm.$nextTick()
 
     // Clear the first call from mount
@@ -219,7 +219,7 @@ describe('Dashboard', () => {
     })
 
     // Wait for loading to complete
-    await new Promise(resolve => setTimeout(resolve, 10))
+    await new Promise((resolve) => setTimeout(resolve, 10))
     await wrapper.vm.$nextTick()
 
     const metricCards = wrapper.findAll('.metric-card')
@@ -242,7 +242,7 @@ describe('Dashboard', () => {
     })
 
     // Wait for loading to complete
-    await new Promise(resolve => setTimeout(resolve, 10))
+    await new Promise((resolve) => setTimeout(resolve, 10))
     await wrapper.vm.$nextTick()
 
     expect(wrapper.find('.charts-section').exists()).toBe(true)
@@ -251,7 +251,7 @@ describe('Dashboard', () => {
 
   it('does not show charts section when loading', async () => {
     let resolvePromise: (value: Metrics) => void
-    const promise = new Promise<Metrics>(resolve => {
+    const promise = new Promise<Metrics>((resolve) => {
       resolvePromise = resolve
     })
     mockGetMetrics.mockReturnValueOnce(promise)
@@ -289,7 +289,7 @@ describe('Dashboard', () => {
     })
 
     // Wait for error handling
-    await new Promise(resolve => setTimeout(resolve, 10))
+    await new Promise((resolve) => setTimeout(resolve, 10))
     await wrapper.vm.$nextTick()
 
     expect(wrapper.find('.charts-section').exists()).toBe(false)

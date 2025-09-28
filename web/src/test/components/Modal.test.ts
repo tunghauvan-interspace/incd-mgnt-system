@@ -10,7 +10,7 @@ describe('Modal', () => {
     // Mock document methods
     document.addEventListener = vi.fn()
     document.removeEventListener = vi.fn()
-    
+
     // Create a div to act as the teleport target
     const div = document.createElement('div')
     document.body.appendChild(div)
@@ -64,9 +64,9 @@ describe('Modal', () => {
 
     const closeButton = document.querySelector('.modal-close') as HTMLButtonElement
     expect(closeButton).toBeTruthy()
-    
+
     closeButton?.click()
-    
+
     expect(wrapper.emitted('close')).toBeTruthy()
     expect(wrapper.emitted('close')).toHaveLength(1)
   })
@@ -83,12 +83,12 @@ describe('Modal', () => {
     // Get overlay element and simulate click
     const overlayElement = document.querySelector('.modal-overlay') as HTMLElement
     expect(overlayElement).toBeTruthy()
-    
+
     // Create and dispatch click event
     const clickEvent = new Event('click', { bubbles: true })
     Object.defineProperty(clickEvent, 'target', { value: overlayElement })
     overlayElement?.dispatchEvent(clickEvent)
-    
+
     expect(wrapper.emitted('close')).toBeTruthy()
   })
 
@@ -104,9 +104,9 @@ describe('Modal', () => {
     // Click on modal content instead of overlay
     const modalElement = document.querySelector('.modal') as HTMLElement
     expect(modalElement).toBeTruthy()
-    
+
     modalElement?.click()
-    
+
     expect(wrapper.emitted('close')).toBeFalsy()
   })
 

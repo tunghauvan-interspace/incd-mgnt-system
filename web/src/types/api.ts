@@ -38,3 +38,53 @@ export interface Metrics {
 export interface AcknowledgeIncidentRequest {
   assignee_id: string
 }
+
+export interface LoginRequest {
+  username: string
+  email?: string
+  password: string
+}
+
+export interface RegisterRequest {
+  username: string
+  email: string
+  full_name: string
+  password: string
+}
+
+export interface AuthResponse {
+  token: string
+  refresh_token: string
+  user: User
+  expires_at: string
+}
+
+export interface User {
+  id: string
+  username: string
+  email: string
+  full_name: string
+  roles: Role[]
+  is_active: boolean
+  created_at: string
+  updated_at: string
+  last_login?: string
+}
+
+export interface Role {
+  id: string
+  name: string
+  display_name: string
+  description?: string
+  permissions: Permission[]
+  created_at: string
+  updated_at: string
+}
+
+export interface Permission {
+  id: string
+  name: string
+  resource: string
+  action: string
+  description?: string
+}
