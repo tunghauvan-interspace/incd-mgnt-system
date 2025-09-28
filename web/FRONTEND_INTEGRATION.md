@@ -14,7 +14,7 @@ The frontend uses a modern Vue.js 3 + TypeScript stack with Vite for development
 ## Project Structure
 
 ```
-web/frontend/
+web/
 ├── src/
 │   ├── components/         # Reusable Vue components
 │   │   ├── Navbar.vue     # Main navigation component
@@ -23,25 +23,75 @@ web/frontend/
 │   ├── views/             # Page-level components (routes)
 │   │   ├── Dashboard.vue  # Main dashboard with metrics
 │   │   ├── Incidents.vue  # Incident management interface
-│   │   └── Alerts.vue     # Alert viewing interface
+│   │   ├── Alerts.vue     # Alert viewing interface
+│   │   ├── Login.vue      # User authentication login form
+│   │   └── Register.vue   # User registration form
 │   ├── services/          # API integration layer
 │   │   └── api.ts         # Axios-based API client
+│   ├── stores/            # Pinia state management
+│   │   └── auth.ts        # Authentication state management
+│   ├── composables/       # Reusable Vue composition functions
+│   │   └── useFormValidation.ts  # Form validation utilities
 │   ├── types/             # TypeScript definitions
-│   │   └── api.ts         # API response type definitions  
+│   │   ├── api.ts         # API response type definitions
+│   │   └── components.ts  # Component prop type definitions  
 │   ├── utils/             # Utility functions
 │   │   └── format.ts      # Date/time formatting helpers
 │   ├── assets/            # Global styles and assets
 │   │   └── main.css       # Global CSS with component styles
 │   ├── router/            # Vue Router configuration
-│   │   └── index.ts       # Route definitions for SPA
+│   │   └── index.ts       # Route definitions and auth guards
+│   ├── test/              # Unit and integration tests
+│   │   ├── components/    # Component tests
+│   │   ├── composables/   # Composable tests
+│   │   ├── services/      # Service tests
+│   │   └── views/         # View/page tests
 │   ├── App.vue            # Root component
 │   └── main.ts            # Application entry point
+├── e2e/                   # Playwright E2E tests
+│   ├── auth.spec.ts       # Authentication flow tests
+│   ├── dashboard.spec.ts  # Dashboard interaction tests
+│   └── incidents.spec.ts  # Incident management tests
 ├── dist/                  # Production build output (ignored by git)
+├── static/                # Build output directory (ignored by git)
 ├── package.json           # Dependencies and scripts
 ├── vite.config.ts         # Vite build configuration
+├── playwright.config.ts   # Playwright E2E test configuration
+├── vitest.config.ts       # Vitest unit test configuration
 ├── tsconfig.json          # TypeScript configuration
 └── .eslintrc.cjs          # ESLint configuration
 ```
+
+## Authentication System
+
+The frontend includes a comprehensive authentication system with the following features:
+
+### Components
+- **Login.vue**: Responsive login form with email/username detection and password visibility toggle
+- **Register.vue**: Registration form with password strength validation and terms acceptance
+- **Form Validation**: Reusable `useFormValidation` composable for client-side validation
+
+### Features
+- JWT token-based authentication with automatic refresh
+- Route protection with authentication guards
+- Persistent session management with localStorage
+- Form validation with real-time error feedback
+- Password strength requirements and confirmation matching
+- Accessibility compliance (WCAG 2.1 AA)
+- Mobile-responsive design
+
+### API Integration
+Authentication endpoints are handled through the centralized API service:
+- `POST /api/auth/login` - User login
+- `POST /api/auth/register` - User registration  
+- `POST /api/auth/refresh` - Token refresh
+
+### State Management
+The `auth` store (Pinia) manages:
+- User authentication state
+- JWT token storage and refresh
+- Role-based permissions
+- Error handling and loading states
 
 ## Build Process
 
