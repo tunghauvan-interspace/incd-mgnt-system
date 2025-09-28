@@ -311,3 +311,154 @@ type Metrics struct {
 	IncidentsByStatus  map[string]int `json:"incidents_by_status"`
 	IncidentsBySeverity map[string]int `json:"incidents_by_severity"`
 }
+
+// IncidentComment represents a comment or timeline event on an incident
+type IncidentComment struct {
+	ID          string                 `json:"id" db:"id"`
+	IncidentID  string                 `json:"incident_id" db:"incident_id"`
+	UserID      *string                `json:"user_id,omitempty" db:"user_id"`
+	User        *User                  `json:"user,omitempty" db:"-"` // populated by joins
+	Content     string                 `json:"content" db:"content"`
+	CommentType IncidentCommentType    `json:"comment_type" db:"comment_type"`
+	Metadata    map[string]interface{} `json:"metadata,omitempty" db:"metadata"`
+	CreatedAt   time.Time              `json:"created_at" db:"created_at"`
+}
+
+// IncidentCommentType represents the type of timeline event
+type IncidentCommentType string
+
+const (
+	CommentTypeComment         IncidentCommentType = "comment"
+	CommentTypeStatusChange    IncidentCommentType = "status_change"
+	CommentTypeAssignment      IncidentCommentType = "assignment"
+	CommentTypeSeverityChange  IncidentCommentType = "severity_change"
+	CommentTypeTagAdded        IncidentCommentType = "tag_added"
+	CommentTypeTagRemoved      IncidentCommentType = "tag_removed"
+	CommentTypeAttachmentAdded IncidentCommentType = "attachment_added"
+)
+
+// IncidentTag represents a tag applied to an incident
+type IncidentTag struct {
+	ID         string     `json:"id" db:"id"`
+	IncidentID string     `json:"incident_id" db:"incident_id"`
+	TagName    string     `json:"tag_name" db:"tag_name"`
+	TagValue   *string    `json:"tag_value,omitempty" db:"tag_value"`
+	Color      string     `json:"color" db:"color"`
+	CreatedBy  *string    `json:"created_by,omitempty" db:"created_by"`
+	CreatedAt  time.Time  `json:"created_at" db:"created_at"`
+	User       *User      `json:"created_by_user,omitempty" db:"-"` // populated by joins
+}
+
+// IncidentTemplate represents a template for creating incidents
+type IncidentTemplate struct {
+	ID                  string            `json:"id" db:"id"`
+	Name                string            `json:"name" db:"name"`
+	Description         string            `json:"description" db:"description"`
+	TitleTemplate       string            `json:"title_template" db:"title_template"`
+	DescriptionTemplate string            `json:"description_template" db:"description_template"`
+	Severity            IncidentSeverity  `json:"severity" db:"severity"`
+	DefaultTags         []TemplateTag     `json:"default_tags" db:"default_tags"`
+	IsActive            bool              `json:"is_active" db:"is_active"`
+	CreatedBy           *string           `json:"created_by,omitempty" db:"created_by"`
+	CreatedAt           time.Time         `json:"created_at" db:"created_at"`
+	UpdatedAt           time.Time         `json:"updated_at" db:"updated_at"`
+	User                *User             `json:"created_by_user,omitempty" db:"-"` // populated by joins
+}
+
+// TemplateTag represents a default tag in a template
+type TemplateTag struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+	Color string `json:"color"`
+}
+
+// IncidentAttachment represents a file attached to an incident
+type IncidentAttachment struct {
+	ID             string              `json:"id" db:"id"`
+	IncidentID     string              `json:"incident_id" db:"incident_id"`
+	FileName       string              `json:"file_name" db:"file_name"`
+	OriginalName   string              `json:"original_name" db:"original_name"`
+	FileSize       int64               `json:"file_size" db:"file_size"`
+	MimeType       string              `json:"mime_type" db:"mime_type"`
+	FilePath       string              `json:"file_path" db:"file_path"`
+	AttachmentType AttachmentType      `json:"attachment_type" db:"attachment_type"`
+	UploadedBy     *string             `json:"uploaded_by,omitempty" db:"uploaded_by"`
+	CreatedAt      time.Time           `json:"created_at" db:"created_at"`
+	User           *User               `json:"uploaded_by_user,omitempty" db:"-"` // populated by joins
+	DownloadURL    string              `json:"download_url,omitempty" db:"-"` // generated field
+}
+
+// AttachmentType represents the type of attachment
+type AttachmentType string
+
+const (
+	AttachmentTypeRunbook   AttachmentType = "runbook"
+	AttachmentTypeScreenshot AttachmentType = "screenshot"
+	AttachmentTypeLog       AttachmentType = "log"
+	AttachmentTypeDocument  AttachmentType = "document"
+	AttachmentTypeGeneral   AttachmentType = "general"
+)
+
+// IncidentSearchRequest represents a search request for incidents
+type IncidentSearchRequest struct {
+	Query      string              `json:"query"`
+	Status     []IncidentStatus    `json:"status"`
+	Severity   []IncidentSeverity  `json:"severity"`
+	AssigneeID *string             `json:"assignee_id"`
+	Tags       []string            `json:"tags"`
+	CreatedAfter  *time.Time       `json:"created_after"`
+	CreatedBefore *time.Time       `json:"created_before"`
+	Page       int                 `json:"page"`
+	Limit      int                 `json:"limit"`
+	OrderBy    string              `json:"order_by"` // created_at, updated_at, severity
+	OrderDir   string              `json:"order_dir"` // asc, desc
+}
+
+// IncidentSearchResponse represents a search response
+type IncidentSearchResponse struct {
+	Incidents    []*Incident `json:"incidents"`
+	Total        int         `json:"total"`
+	Page         int         `json:"page"`
+	Limit        int         `json:"limit"`
+	TotalPages   int         `json:"total_pages"`
+}
+
+// BulkOperationRequest represents a bulk operation request
+type BulkOperationRequest struct {
+	IncidentIDs []string           `json:"incident_ids"`
+	Operation   BulkOperationType  `json:"operation"`
+	Parameters  map[string]interface{} `json:"parameters,omitempty"`
+}
+
+// BulkOperationType represents the type of bulk operation
+type BulkOperationType string
+
+const (
+	BulkOperationAcknowledge  BulkOperationType = "acknowledge"
+	BulkOperationResolve      BulkOperationType = "resolve"
+	BulkOperationUpdateStatus BulkOperationType = "update_status"
+	BulkOperationAssign       BulkOperationType = "assign"
+	BulkOperationAddTags      BulkOperationType = "add_tags"
+	BulkOperationRemoveTags   BulkOperationType = "remove_tags"
+)
+
+// BulkOperationResponse represents the result of a bulk operation
+type BulkOperationResponse struct {
+	ProcessedCount int                      `json:"processed_count"`
+	FailedCount    int                      `json:"failed_count"`
+	Failures       []BulkOperationFailure   `json:"failures,omitempty"`
+}
+
+// BulkOperationFailure represents a failure in bulk operation
+type BulkOperationFailure struct {
+	IncidentID string `json:"incident_id"`
+	Error      string `json:"error"`
+}
+
+// CreateIncidentFromTemplateRequest represents a request to create incident from template
+type CreateIncidentFromTemplateRequest struct {
+	TemplateID  string            `json:"template_id"`
+	Variables   map[string]string `json:"variables"`
+	AssigneeID  *string           `json:"assignee_id"`
+	AdditionalTags []TemplateTag  `json:"additional_tags"`
+}
