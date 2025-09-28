@@ -1,14 +1,25 @@
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 flex items-center justify-center px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-    <!-- Background decorative elements -->
+  <div class="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 flex items-center justify-center px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+    <!-- Enhanced background with animated particles -->
     <div class="absolute inset-0 overflow-hidden">
-      <div class="absolute -top-40 -right-40 w-80 h-80 rounded-full bg-gradient-to-br from-green-400/20 to-emerald-400/20 blur-3xl"></div>
-      <div class="absolute -bottom-40 -left-40 w-80 h-80 rounded-full bg-gradient-to-tr from-teal-400/20 to-green-400/20 blur-3xl"></div>
-      <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full bg-gradient-to-r from-emerald-400/10 to-teal-400/10 blur-3xl"></div>
+      <!-- Main gradient blobs -->
+      <div class="absolute -top-40 -right-40 w-80 h-80 rounded-full bg-gradient-to-br from-emerald-400/20 to-teal-400/20 blur-3xl animate-pulse"></div>
+      <div class="absolute -bottom-40 -left-40 w-80 h-80 rounded-full bg-gradient-to-tr from-cyan-400/20 to-green-400/20 blur-3xl animate-pulse" style="animation-delay: 1s;"></div>
+      <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full bg-gradient-to-r from-teal-400/10 to-emerald-400/10 blur-3xl animate-pulse" style="animation-delay: 2s;"></div>
+      
+      <!-- Floating particles -->
+      <div class="absolute top-20 left-20 w-2 h-2 bg-emerald-400/30 rounded-full animate-float"></div>
+      <div class="absolute top-40 right-32 w-1 h-1 bg-teal-400/40 rounded-full animate-float" style="animation-delay: 0.5s;"></div>
+      <div class="absolute bottom-32 left-48 w-1.5 h-1.5 bg-cyan-400/35 rounded-full animate-float" style="animation-delay: 1.2s;"></div>
+      <div class="absolute top-60 right-20 w-1 h-1 bg-green-400/40 rounded-full animate-float" style="animation-delay: 2.1s;"></div>
+      <div class="absolute bottom-60 right-40 w-2 h-2 bg-emerald-400/30 rounded-full animate-float" style="animation-delay: 1.8s;"></div>
+      
+      <!-- Grid pattern overlay -->
+      <div class="absolute inset-0 bg-grid-pattern opacity-5"></div>
     </div>
     
-    <div class="max-w-5xl w-full relative z-10">
-      <div class="lg:grid-cols-2 lg:grid gap-8">
+    <div class="max-w-7xl w-full relative z-10 container-modern">
+      <div class="lg:grid-cols-2 lg:grid gap-12 items-center min-h-screen py-12">
         <!-- Left Panel - Hero Content -->
         <div class="hidden lg:flex flex-col justify-center">
           <div class="max-w-md">
@@ -60,24 +71,34 @@
           </div>
         </div>
 
-        <!-- Right Panel - Registration Form -->
-        <div class="flex flex-col justify-center">
-          <!-- Mobile logo/branding -->
-          <div class="lg:hidden text-center mb-8">
-            <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-green-600 to-emerald-600 shadow-lg mb-4">
-              <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
+        <!-- Right Panel - Enhanced Registration Form -->
+        <div class="flex flex-col justify-center animate-slide-in-right">
+          <!-- Mobile logo/branding with enhanced animation -->
+          <div class="lg:hidden text-center mb-10 animate-bounce-in">
+            <div class="inline-flex items-center justify-center w-18 h-18 rounded-3xl bg-gradient-to-tr from-emerald-600 via-green-700 to-teal-700 shadow-xl mb-6 relative overflow-hidden group">
+              <!-- Shimmer effect -->
+              <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12 transform translate-x-full group-hover:translate-x-[-200%] transition-transform duration-1000"></div>
+              <svg class="w-10 h-10 text-white relative z-10" fill="currentColor" viewBox="0 0 20 20">
                 <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
               </svg>
             </div>
-            <h1 class="text-2xl font-bold text-slate-900">Join Our Team</h1>
-            <p class="text-slate-600 text-sm">Start Your Journey Today</p>
+            <h1 class="text-3xl font-bold bg-gradient-to-r from-slate-900 to-emerald-900 bg-clip-text text-transparent">Join Our Team</h1>
+            <p class="text-slate-600 text-base mt-2">Start Your Journey Today</p>
           </div>
           
-          <div class="card max-w-md mx-auto w-full backdrop-blur-lg bg-white/70 border border-white/20 shadow-2xl">
-            <!-- Header -->
-            <div class="text-center mb-8">
-              <h2 class="text-3xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">Create Account</h2>
-              <p class="mt-2 text-slate-600">Join thousands of teams managing incidents effectively</p>
+          <div class="card-modern max-w-lg mx-auto w-full">
+            <!-- Enhanced Header with gradient text -->
+            <div class="text-center mb-10">
+              <h2 class="text-4xl font-bold bg-gradient-to-r from-slate-900 via-emerald-900 to-teal-900 bg-clip-text text-transparent mb-3">Create Account</h2>
+              <p class="text-lg text-slate-600">Join thousands of teams managing incidents effectively</p>
+              <!-- Progress indicator for registration -->
+              <div class="mt-4 flex justify-center">
+                <div class="flex space-x-2">
+                  <div class="w-8 h-1 bg-slate-200 rounded-full"></div>
+                  <div class="w-8 h-1 bg-emerald-600 rounded-full"></div>
+                  <div class="w-8 h-1 bg-slate-200 rounded-full"></div>
+                </div>
+              </div>
             </div>
 
             <!-- Error Message -->
@@ -460,9 +481,148 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* Component-specific styles */
+/* Modern Web Platform Animations - Register Version */
+@keyframes float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-20px) rotate(180deg); }
+}
+
+@keyframes slide-up {
+  from { 
+    opacity: 0; 
+    transform: translateY(30px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
+
+@keyframes slide-in-left {
+  from { 
+    opacity: 0; 
+    transform: translateX(-50px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateX(0); 
+  }
+}
+
+@keyframes slide-in-right {
+  from { 
+    opacity: 0; 
+    transform: translateX(50px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateX(0); 
+  }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes bounce-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  70% {
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes text-gradient {
+  0%, 100% {
+    background-size: 200% 200%;
+    background-position: left center;
+  }
+  50% {
+    background-size: 200% 200%;
+    background-position: right center;
+  }
+}
+
+/* Apply animations */
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.8s ease-out both;
+}
+
+.animate-slide-in-left {
+  animation: slide-in-left 0.8s ease-out both;
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.8s ease-out both;
+}
+
+.animate-fade-in {
+  animation: fade-in 1s ease-out both;
+}
+
+.animate-bounce-in {
+  animation: bounce-in 1s ease-out both;
+}
+
+.animate-text-gradient {
+  animation: text-gradient 3s ease infinite;
+  background-size: 200% auto;
+}
+
+/* Modern container system */
+.container-modern {
+  @apply px-6 sm:px-8 lg:px-12;
+}
+
+/* Enhanced card with modern effects - Emerald theme */
+.card-modern {
+  @apply bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl p-10 border border-white/30;
+  box-shadow: 
+    0 32px 64px -12px rgba(0, 0, 0, 0.08),
+    0 25px 50px -12px rgba(16, 185, 129, 0.15),
+    0 0 0 1px rgba(255, 255, 255, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  position: relative;
+  overflow: hidden;
+}
+
+.card-modern::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.5), transparent);
+}
+
+/* Grid background pattern - Emerald theme */
+.bg-grid-pattern {
+  background-image: 
+    linear-gradient(rgba(16, 185, 129, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(16, 185, 129, 0.1) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* Enhanced component styles */
 .hero-badge {
-  @apply inline-flex items-center bg-green-50 text-green-700 px-3 py-1.5 rounded-full text-sm font-semibold;
+  @apply inline-flex items-center bg-gradient-to-r from-emerald-50 to-teal-50 text-emerald-700 px-4 py-2 rounded-2xl text-sm font-semibold border border-emerald-200/50 shadow-sm;
+  backdrop-filter: blur(10px);
 }
 
 .hero-badge > svg {
@@ -471,54 +631,116 @@ onMounted(() => {
 
 .hero-title {
   @apply text-slate-900 leading-tight;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-variation-settings: 'wght' 800;
 }
 
 .hero-desc {
-  @apply text-slate-600 max-w-lg;
-}
-
-.card {
-  @apply bg-white/70 backdrop-blur-lg rounded-3xl shadow-2xl p-8 border border-white/20;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.2);
+  @apply text-slate-600 max-w-2xl;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
 .form-group {
-  @apply space-y-1;
+  @apply space-y-2;
 }
 
 .error-box {
-  @apply bg-red-50/80 backdrop-blur-sm border border-red-200/50 text-red-800 px-4 py-3 rounded-xl text-sm shadow-sm;
+  @apply bg-red-50/90 backdrop-blur-sm border border-red-200/60 text-red-800 px-5 py-4 rounded-2xl text-sm shadow-sm;
+  position: relative;
+}
+
+.error-box::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #ef4444, #dc2626);
+  border-radius: 1rem 1rem 0 0;
 }
 
 .btn-primary {
-  @apply bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-green-700 hover:to-emerald-700 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2;
+  @apply bg-gradient-to-r from-emerald-600 via-green-700 to-teal-700 text-white font-semibold rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2;
   transform: translateY(0);
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-primary::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s;
+}
+
+.btn-primary:hover:not(:disabled)::before {
+  left: 100%;
 }
 
 .btn-primary:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 25px 50px -12px rgba(34, 197, 94, 0.25);
+  transform: translateY(-3px) scale(1.02);
+  box-shadow: 0 25px 50px -12px rgba(16, 185, 129, 0.4);
 }
 
 .btn-primary:active:not(:disabled) {
-  transform: translateY(0);
+  transform: translateY(-1px) scale(0.98);
 }
 
-/* Enhanced input styling */
+/* Enhanced input styling with modern focus states */
 input[type="text"], input[type="password"], input[type="email"] {
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(12px);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 input:focus {
-  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1), 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+  box-shadow: 
+    0 0 0 3px rgba(16, 185, 129, 0.12), 
+    0 10px 25px -5px rgba(16, 185, 129, 0.25),
+    0 0 0 1px rgba(16, 185, 129, 0.5);
+  transform: translateY(-2px);
 }
 
-/* Custom checkbox styling */
+input:hover:not(:focus) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.1);
+}
+
+/* Floating label enhancements */
+label {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-variation-settings: 'wght' 500;
+}
+
+/* Custom checkbox styling - Enhanced */
 .checkbox-group {
   position: relative;
 }
 
-/* Responsive adjustments */
+/* Custom scrollbar for modern look - Emerald theme */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(148, 163, 184, 0.1);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.8), rgba(20, 184, 166, 0.8));
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(16, 185, 129, 1), rgba(20, 184, 166, 1));
+}
+
+/* Responsive enhancements */
 @media (max-width: 1023px) {
   .lg\:grid-cols-2 {
     grid-template-columns: 1fr;
@@ -528,15 +750,14 @@ input:focus {
     display: none;
   }
   
-  .card {
+  .card-modern {
     @apply mx-4;
   }
 }
 
-/* Mobile-specific enhancements */
 @media (max-width: 640px) {
-  .card {
-    @apply p-6 mx-3;
+  .card-modern {
+    @apply p-8 mx-4;
   }
   
   .btn-primary {
@@ -549,6 +770,31 @@ input:focus {
   
   .form-group {
     @apply space-y-2;
+  }
+  
+  .container-modern {
+    @apply px-4;
+  }
+}
+
+/* Reduced motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .animate-float,
+  .animate-slide-up,
+  .animate-slide-in-left,
+  .animate-slide-in-right,
+  .animate-fade-in,
+  .animate-bounce-in,
+  .animate-text-gradient {
+    animation: none;
+  }
+  
+  input:focus {
+    transform: none;
+  }
+  
+  .btn-primary:hover:not(:disabled) {
+    transform: none;
   }
 }
 </style>
