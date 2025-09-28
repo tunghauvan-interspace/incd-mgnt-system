@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "nodemon --watch 'vite.config.ts' --exec vite",
     "build": "vue-tsc --project tsconfig.build.json && vite build",
     "build:prod": "vue-tsc --project tsconfig.build.json && vite build --mode production",
     "preview": "vite preview",
@@ -38,6 +38,7 @@
     "eslint": "^8.56.0",
     "eslint-plugin-vue": "^9.19.2",
     "jsdom": "^23.1.0",
+    "nodemon": "^3.1.10",
     "playwright": "^1.40.1",
     "prettier": "^3.1.1",
     "terser": "^5.44.0",
