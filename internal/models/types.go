@@ -54,11 +54,99 @@ type Alert struct {
 
 // NotificationChannel represents a notification destination
 type NotificationChannel struct {
-	ID       string            `json:"id"`
-	Type     string            `json:"type"` // slack, email, telegram
-	Config   map[string]string `json:"config"`
-	Enabled  bool              `json:"enabled"`
-	Name     string            `json:"name"`
+	ID          string                 `json:"id"`
+	Name        string                 `json:"name"`
+	Type        string                 `json:"type"`    // slack, email, telegram
+	Config      map[string]string      `json:"config"`
+	Enabled     bool                   `json:"enabled"`
+	Templates   map[string]string      `json:"templates"` // template_type -> template_content
+	UserID      string                 `json:"user_id,omitempty"`     // associated user
+	OrgID       string                 `json:"org_id,omitempty"`      // associated organization
+	Preferences *ChannelPreferences    `json:"preferences,omitempty"`
+	CreatedAt   time.Time              `json:"created_at"`
+	UpdatedAt   time.Time              `json:"updated_at"`
+}
+
+// ChannelPreferences defines user preferences for notification channels
+type ChannelPreferences struct {
+	OptIn              bool              `json:"opt_in"`
+	SeverityFilter     []string          `json:"severity_filter"`     // only notify for these severities
+	IncidentTypes      []string          `json:"incident_types"`      // only notify for these incident types
+	QuietHours         *QuietHoursConfig `json:"quiet_hours"`
+	BatchingEnabled    bool              `json:"batching_enabled"`
+	MaxBatchSize       int               `json:"max_batch_size"`
+	BatchingInterval   time.Duration     `json:"batching_interval"`
+}
+
+// QuietHours defines periods when notifications should be suppressed
+type QuietHoursConfig struct {
+	Enabled   bool   `json:"enabled"`
+	StartTime string `json:"start_time"` // HH:MM format
+	EndTime   string `json:"end_time"`   // HH:MM format
+	Timezone  string `json:"timezone"`
+	Days      []int  `json:"days"` // 0=Sunday, 1=Monday, etc.
+}
+
+// NotificationTemplate defines a customizable notification template
+type NotificationTemplate struct {
+	ID            string            `json:"id"`
+	Name          string            `json:"name"`
+	Type          string            `json:"type"`         // incident_created, incident_acked, incident_resolved
+	Channel       string            `json:"channel"`      // slack, email, telegram
+	Subject       string            `json:"subject"`      // for email
+	Body          string            `json:"body"`         // template with placeholders
+	Variables     map[string]string `json:"variables"`    // available variables with descriptions
+	IsDefault     bool              `json:"is_default"`   // is this the default template for this type/channel
+	UserID        string            `json:"user_id,omitempty"`  // user-specific template
+	OrgID         string            `json:"org_id,omitempty"`   // organization-specific template
+	CreatedAt     time.Time         `json:"created_at"`
+	UpdatedAt     time.Time         `json:"updated_at"`
+}
+
+// NotificationDeliveryStatus represents the status of a notification delivery
+type NotificationDeliveryStatus string
+
+const (
+	DeliveryStatusPending   NotificationDeliveryStatus = "pending"
+	DeliveryStatusSent      NotificationDeliveryStatus = "sent"
+	DeliveryStatusDelivered NotificationDeliveryStatus = "delivered"
+	DeliveryStatusFailed    NotificationDeliveryStatus = "failed"
+	DeliveryStatusRetrying  NotificationDeliveryStatus = "retrying"
+)
+
+// NotificationHistory tracks the delivery history of notifications
+type NotificationHistory struct {
+	ID          string                     `json:"id"`
+	IncidentID  string                     `json:"incident_id"`
+	ChannelID   string                     `json:"channel_id"`
+	TemplateID  string                     `json:"template_id,omitempty"`
+	Type        string                     `json:"type"`      // incident_created, incident_acked, incident_resolved
+	Channel     string                     `json:"channel"`   // slack, email, telegram
+	Recipient   string                     `json:"recipient"` // email address, slack user, telegram chat id
+	Subject     string                     `json:"subject,omitempty"`
+	Content     string                     `json:"content"`
+	Status      NotificationDeliveryStatus `json:"status"`
+	ErrorMsg    string                     `json:"error_msg,omitempty"`
+	RetryCount  int                        `json:"retry_count"`
+	ScheduledAt *time.Time                 `json:"scheduled_at,omitempty"`
+	SentAt      *time.Time                 `json:"sent_at,omitempty"`
+	DeliveredAt *time.Time                 `json:"delivered_at,omitempty"`
+	CreatedAt   time.Time                  `json:"created_at"`
+	UpdatedAt   time.Time                  `json:"updated_at"`
+}
+
+// NotificationBatch represents a batch of notifications for efficient delivery
+type NotificationBatch struct {
+	ID            string                   `json:"id"`
+	ChannelID     string                   `json:"channel_id"`
+	Type          string                   `json:"type"`        // incident_created, incident_acked, etc.
+	Count         int                      `json:"count"`       // number of notifications in batch
+	Status        NotificationDeliveryStatus `json:"status"`
+	Notifications []string                 `json:"notifications"` // notification history IDs
+	ScheduledAt   *time.Time               `json:"scheduled_at,omitempty"`
+	ProcessedAt   *time.Time               `json:"processed_at,omitempty"`
+	CreatedAt     time.Time                `json:"created_at"`
+	UpdatedAt     time.Time                `json:"updated_at"`
 }
 
 // EscalationPolicy defines how incidents should be escalated
