@@ -114,7 +114,6 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/webhooks/alertmanager", webhookHandler)
 	
 	// Protected API routes - require authentication
-	mux.HandleFunc("/api/incidents/", middleware.AuthMiddleware(h.authService)(http.HandlerFunc(h.handleIncidents)).ServeHTTP)
 	mux.HandleFunc("/api/incidents", middleware.AuthMiddleware(h.authService)(http.HandlerFunc(h.handleListIncidents)).ServeHTTP)
 	mux.HandleFunc("/api/alerts", middleware.AuthMiddleware(h.authService)(http.HandlerFunc(h.handleListAlerts)).ServeHTTP)
 	mux.HandleFunc("/api/metrics", middleware.OptionalAuthMiddleware(h.authService)(http.HandlerFunc(h.handleGetMetrics)).ServeHTTP) // JSON metrics (deprecated)
@@ -124,28 +123,33 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/incidents/bulk", middleware.AuthMiddleware(h.authService)(http.HandlerFunc(h.handleIncidentBulkOperations)).ServeHTTP)
 	mux.HandleFunc("/api/incidents/from-template", middleware.AuthMiddleware(h.authService)(http.HandlerFunc(h.handleIncidentFromTemplate)).ServeHTTP)
 	
-	// Incident sub-resources (comments, tags, timeline, assignments)
-	mux.HandleFunc("/api/incidents/", func(w http.ResponseWriter, r *http.Request) {
-		middleware.AuthMiddleware(h.authService)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			pathParts := strings.Split(r.URL.Path, "/")
-			if len(pathParts) >= 5 {
-				switch pathParts[4] {
-				case "comments":
-					h.handleIncidentComments(w, r)
-				case "timeline":
-					h.handleIncidentTimeline(w, r)
-				case "tags":
-					h.handleIncidentTags(w, r)
-				case "assign":
-					h.handleIncidentAssignment(w, r)
-				default:
-					h.handleIncidents(w, r) // Fallback to existing handler
-				}
-			} else {
-				h.handleIncidents(w, r)
+	// Incident sub-resources - need to handle path parsing carefully
+	mux.HandleFunc("/api/incidents/", middleware.AuthMiddleware(h.authService)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/incidents/"), "/")
+		
+		// Handle specific incident sub-resources
+		if len(pathParts) >= 2 && pathParts[0] != "" {
+			subResource := pathParts[1]
+			
+			switch subResource {
+			case "comments":
+				h.handleIncidentComments(w, r)
+				return
+			case "timeline": 
+				h.handleIncidentTimeline(w, r)
+				return
+			case "tags":
+				h.handleIncidentTags(w, r)
+				return
+			case "assign":
+				h.handleIncidentAssignment(w, r)
+				return
 			}
-		})).ServeHTTP(w, r)
-	})
+		}
+		
+		// Fallback to existing incident handler for specific incidents
+		h.handleIncidents(w, r)
+	})).ServeHTTP)
 
 	// Template management
 	mux.HandleFunc("/api/templates", middleware.AuthMiddleware(h.authService)(http.HandlerFunc(h.handleIncidentTemplates)).ServeHTTP)
