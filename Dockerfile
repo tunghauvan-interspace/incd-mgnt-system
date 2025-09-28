@@ -4,7 +4,7 @@ WORKDIR /app/web/frontend
 
 # Copy frontend package files
 COPY web/frontend/package*.json ./
-RUN npm ci --only=production
+RUN npm ci
 
 # Copy frontend source code and build
 COPY web/frontend/ ./
@@ -37,6 +37,9 @@ COPY --from=backend-builder /app/main .
 
 # Copy web assets including built frontend
 COPY --from=backend-builder /app/web ./web
+
+# Copy migrations directory
+COPY --from=backend-builder /app/migrations ./migrations
 
 # Create directory for templates
 RUN mkdir -p web/templates web/static

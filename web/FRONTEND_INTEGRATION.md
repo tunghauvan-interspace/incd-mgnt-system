@@ -79,6 +79,28 @@ The Vue.js application is built using Vite and outputs to the `web/frontend/dist
 - **ESLint Integration**: Code quality and consistency checking
 - **Source Maps**: Debugging support in browser dev tools
 
+## Proxy configuration (container vs host)
+
+The dev server proxy can be configured via environment variables. The Vite config reads `VITE_API_TARGET` (and falls back to `http://backend:8080`).
+
+- When running the frontend inside Docker via `docker-compose` the default target `http://backend:8080` will correctly route to the backend service.
+
+- When running the frontend on your host machine, set:
+
+```powershell
+# PowerShell example (Windows)
+$env:VITE_API_TARGET = 'http://host.docker.internal:8080'
+npm run dev
+```
+
+Or on macOS/Linux:
+
+```bash
+VITE_API_TARGET='http://host.docker.internal:8080' npm run dev
+```
+
+Vite loads `.env` files with `VITE_` prefixes automatically, so you can also place `VITE_API_TARGET` in `web/frontend/.env` for convenience.
+
 ## Production Build Process
 
 ### Building for Production
@@ -222,5 +244,3 @@ The frontend expects these API endpoints (unchanged from original):
 - `PUT /api/incidents/:id/resolve` - Resolve incident
 - `GET /api/alerts` - List alerts
 - `GET /api/metrics` - Get dashboard metrics
-
-All API data structures match the existing Go backend implementation.

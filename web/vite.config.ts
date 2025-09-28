@@ -2,6 +2,9 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
 
+// Determine API target for dev proxy. When running inside Docker, use 'backend'.
+const apiTarget = process.env.VITE_API_TARGET || process.env.VITE_API_HOST || 'http://backend:8080'
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [vue()],
@@ -30,7 +33,7 @@ export default defineConfig({
         // Organize assets by type with content hashing
         entryFileNames: 'js/[name]-[hash].js',
         chunkFileNames: 'js/[name]-[hash].js',
-        assetFileNames: (assetInfo) => {
+        assetFileNames: (assetInfo: any) => {
           const info = assetInfo.name?.split('.') || []
           const ext = info[info.length - 1]
 
@@ -58,7 +61,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:8080',
+        target: apiTarget,
         changeOrigin: true
       }
     }
