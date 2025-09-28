@@ -53,9 +53,15 @@ func (s *NotificationTemplateService) RenderTemplate(tmpl *models.NotificationTe
 		"formatTime": func(t time.Time) string {
 			return t.Format("2006-01-02 15:04:05 MST")
 		},
-		"upper": strings.ToUpper,
-		"lower": strings.ToLower,
-		"title": strings.Title,
+		"upper": func(s interface{}) string {
+			return strings.ToUpper(fmt.Sprintf("%v", s))
+		},
+		"lower": func(s interface{}) string {
+			return strings.ToLower(fmt.Sprintf("%v", s))
+		},
+		"title": func(s interface{}) string {
+			return strings.Title(fmt.Sprintf("%v", s))
+		},
 		"duration": func(start, end time.Time) string {
 			if end.IsZero() {
 				return "N/A"
