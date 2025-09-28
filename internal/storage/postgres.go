@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/golang-migrate/migrate/v4"
@@ -1572,4 +1573,569 @@ func (s *PostgresStore) HealthCheck() error {
 // GetDBStats returns database connection statistics
 func (s *PostgresStore) GetDBStats() sql.DBStats {
 	return s.db.Stats()
+}
+
+// Enhanced Incident Features - Comments Implementation
+
+func (s *PostgresStore) CreateIncidentComment(comment *models.IncidentComment) error {
+	query := `
+		INSERT INTO incident_comments (id, incident_id, user_id, content, comment_type, metadata, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`
+
+	metadataJSON, err := json.Marshal(comment.Metadata)
+	if err != nil {
+		return fmt.Errorf("failed to marshal metadata: %w", err)
+	}
+
+	_, err = s.db.Exec(query,
+		comment.ID, comment.IncidentID, comment.UserID, comment.Content,
+		comment.CommentType, metadataJSON, comment.CreatedAt,
+	)
+	return err
+}
+
+func (s *PostgresStore) GetIncidentComments(incidentID string) ([]*models.IncidentComment, error) {
+	query := `
+		SELECT c.id, c.incident_id, c.user_id, c.content, c.comment_type, c.metadata, c.created_at,
+		       u.username, u.full_name
+		FROM incident_comments c
+		LEFT JOIN users u ON c.user_id = u.id
+		WHERE c.incident_id = $1
+		ORDER BY c.created_at ASC
+	`
+
+	rows, err := s.db.Query(query, incidentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var comments []*models.IncidentComment
+	for rows.Next() {
+		var comment models.IncidentComment
+		var user models.User
+		var metadataJSON []byte
+		var username, fullName sql.NullString
+
+		err := rows.Scan(
+			&comment.ID, &comment.IncidentID, &comment.UserID, &comment.Content,
+			&comment.CommentType, &metadataJSON, &comment.CreatedAt,
+			&username, &fullName,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		// Parse metadata
+		if len(metadataJSON) > 0 {
+			if err := json.Unmarshal(metadataJSON, &comment.Metadata); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
+			}
+		}
+
+		// Populate user if available
+		if username.Valid {
+			user.Username = username.String
+			user.FullName = fullName.String
+			comment.User = &user
+		}
+
+		comments = append(comments, &comment)
+	}
+
+	return comments, nil
+}
+
+func (s *PostgresStore) GetIncidentTimeline(incidentID string) ([]*models.IncidentComment, error) {
+	// For PostgreSQL, timeline is the same as comments (ordered by creation time)
+	return s.GetIncidentComments(incidentID)
+}
+
+// Enhanced Incident Features - Tags Implementation
+
+func (s *PostgresStore) CreateIncidentTag(tag *models.IncidentTag) error {
+	query := `
+		INSERT INTO incident_tags (id, incident_id, tag_name, tag_value, color, created_by, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		ON CONFLICT (incident_id, tag_name, tag_value) DO NOTHING
+	`
+
+	_, err := s.db.Exec(query,
+		tag.ID, tag.IncidentID, tag.TagName, tag.TagValue,
+		tag.Color, tag.CreatedBy, tag.CreatedAt,
+	)
+	return err
+}
+
+func (s *PostgresStore) GetIncidentTags(incidentID string) ([]*models.IncidentTag, error) {
+	query := `
+		SELECT t.id, t.incident_id, t.tag_name, t.tag_value, t.color, t.created_by, t.created_at,
+		       u.username, u.full_name
+		FROM incident_tags t
+		LEFT JOIN users u ON t.created_by = u.id
+		WHERE t.incident_id = $1
+		ORDER BY t.created_at ASC
+	`
+
+	rows, err := s.db.Query(query, incidentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tags []*models.IncidentTag
+	for rows.Next() {
+		var tag models.IncidentTag
+		var user models.User
+		var username, fullName sql.NullString
+
+		err := rows.Scan(
+			&tag.ID, &tag.IncidentID, &tag.TagName, &tag.TagValue,
+			&tag.Color, &tag.CreatedBy, &tag.CreatedAt,
+			&username, &fullName,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		// Populate user if available
+		if username.Valid {
+			user.Username = username.String
+			user.FullName = fullName.String
+			tag.User = &user
+		}
+
+		tags = append(tags, &tag)
+	}
+
+	return tags, nil
+}
+
+func (s *PostgresStore) DeleteIncidentTag(incidentID, tagName string) error {
+	query := `DELETE FROM incident_tags WHERE incident_id = $1 AND tag_name = $2`
+	result, err := s.db.Exec(query, incidentID, tagName)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return ErrNotFound
+	}
+
+	return nil
+}
+
+// Enhanced Incident Features - Templates Implementation
+
+func (s *PostgresStore) CreateIncidentTemplate(template *models.IncidentTemplate) error {
+	query := `
+		INSERT INTO incident_templates (id, name, description, title_template, description_template,
+			severity, default_tags, is_active, created_by, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+	`
+
+	defaultTagsJSON, err := json.Marshal(template.DefaultTags)
+	if err != nil {
+		return fmt.Errorf("failed to marshal default tags: %w", err)
+	}
+
+	_, err = s.db.Exec(query,
+		template.ID, template.Name, template.Description,
+		template.TitleTemplate, template.DescriptionTemplate,
+		template.Severity, defaultTagsJSON, template.IsActive,
+		template.CreatedBy, template.CreatedAt, template.UpdatedAt,
+	)
+	return err
+}
+
+func (s *PostgresStore) GetIncidentTemplate(id string) (*models.IncidentTemplate, error) {
+	query := `
+		SELECT t.id, t.name, t.description, t.title_template, t.description_template,
+		       t.severity, t.default_tags, t.is_active, t.created_by, t.created_at, t.updated_at,
+		       u.username, u.full_name
+		FROM incident_templates t
+		LEFT JOIN users u ON t.created_by = u.id
+		WHERE t.id = $1
+	`
+
+	var template models.IncidentTemplate
+	var user models.User
+	var defaultTagsJSON []byte
+	var username, fullName sql.NullString
+
+	err := s.db.QueryRow(query, id).Scan(
+		&template.ID, &template.Name, &template.Description,
+		&template.TitleTemplate, &template.DescriptionTemplate,
+		&template.Severity, &defaultTagsJSON, &template.IsActive,
+		&template.CreatedBy, &template.CreatedAt, &template.UpdatedAt,
+		&username, &fullName,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	// Parse default tags
+	if len(defaultTagsJSON) > 0 {
+		if err := json.Unmarshal(defaultTagsJSON, &template.DefaultTags); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal default tags: %w", err)
+		}
+	}
+
+	// Populate user if available
+	if username.Valid {
+		user.Username = username.String
+		user.FullName = fullName.String
+		template.User = &user
+	}
+
+	return &template, nil
+}
+
+func (s *PostgresStore) ListIncidentTemplates(activeOnly bool) ([]*models.IncidentTemplate, error) {
+	query := `
+		SELECT t.id, t.name, t.description, t.title_template, t.description_template,
+		       t.severity, t.default_tags, t.is_active, t.created_by, t.created_at, t.updated_at,
+		       u.username, u.full_name
+		FROM incident_templates t
+		LEFT JOIN users u ON t.created_by = u.id
+	`
+	
+	if activeOnly {
+		query += " WHERE t.is_active = true"
+	}
+	
+	query += " ORDER BY t.created_at DESC"
+
+	rows, err := s.db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var templates []*models.IncidentTemplate
+	for rows.Next() {
+		var template models.IncidentTemplate
+		var user models.User
+		var defaultTagsJSON []byte
+		var username, fullName sql.NullString
+
+		err := rows.Scan(
+			&template.ID, &template.Name, &template.Description,
+			&template.TitleTemplate, &template.DescriptionTemplate,
+			&template.Severity, &defaultTagsJSON, &template.IsActive,
+			&template.CreatedBy, &template.CreatedAt, &template.UpdatedAt,
+			&username, &fullName,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		// Parse default tags
+		if len(defaultTagsJSON) > 0 {
+			if err := json.Unmarshal(defaultTagsJSON, &template.DefaultTags); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal default tags: %w", err)
+			}
+		}
+
+		// Populate user if available
+		if username.Valid {
+			user.Username = username.String
+			user.FullName = fullName.String
+			template.User = &user
+		}
+
+		templates = append(templates, &template)
+	}
+
+	return templates, nil
+}
+
+func (s *PostgresStore) UpdateIncidentTemplate(template *models.IncidentTemplate) error {
+	query := `
+		UPDATE incident_templates
+		SET name = $2, description = $3, title_template = $4, description_template = $5,
+		    severity = $6, default_tags = $7, is_active = $8, updated_at = $9
+		WHERE id = $1
+	`
+
+	defaultTagsJSON, err := json.Marshal(template.DefaultTags)
+	if err != nil {
+		return fmt.Errorf("failed to marshal default tags: %w", err)
+	}
+
+	result, err := s.db.Exec(query,
+		template.ID, template.Name, template.Description,
+		template.TitleTemplate, template.DescriptionTemplate,
+		template.Severity, defaultTagsJSON, template.IsActive, template.UpdatedAt,
+	)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return ErrNotFound
+	}
+
+	return nil
+}
+
+func (s *PostgresStore) DeleteIncidentTemplate(id string) error {
+	query := `DELETE FROM incident_templates WHERE id = $1`
+	result, err := s.db.Exec(query, id)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return ErrNotFound
+	}
+
+	return nil
+}
+
+// Enhanced Incident Features - Attachments Implementation
+
+func (s *PostgresStore) CreateIncidentAttachment(attachment *models.IncidentAttachment) error {
+	query := `
+		INSERT INTO incident_attachments (id, incident_id, file_name, original_name, file_size,
+			mime_type, file_path, attachment_type, uploaded_by, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+	`
+
+	_, err := s.db.Exec(query,
+		attachment.ID, attachment.IncidentID, attachment.FileName,
+		attachment.OriginalName, attachment.FileSize, attachment.MimeType,
+		attachment.FilePath, attachment.AttachmentType, attachment.UploadedBy,
+		attachment.CreatedAt,
+	)
+	return err
+}
+
+func (s *PostgresStore) GetIncidentAttachments(incidentID string) ([]*models.IncidentAttachment, error) {
+	query := `
+		SELECT a.id, a.incident_id, a.file_name, a.original_name, a.file_size,
+		       a.mime_type, a.file_path, a.attachment_type, a.uploaded_by, a.created_at,
+		       u.username, u.full_name
+		FROM incident_attachments a
+		LEFT JOIN users u ON a.uploaded_by = u.id
+		WHERE a.incident_id = $1
+		ORDER BY a.created_at DESC
+	`
+
+	rows, err := s.db.Query(query, incidentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var attachments []*models.IncidentAttachment
+	for rows.Next() {
+		var attachment models.IncidentAttachment
+		var user models.User
+		var username, fullName sql.NullString
+
+		err := rows.Scan(
+			&attachment.ID, &attachment.IncidentID, &attachment.FileName,
+			&attachment.OriginalName, &attachment.FileSize, &attachment.MimeType,
+			&attachment.FilePath, &attachment.AttachmentType, &attachment.UploadedBy,
+			&attachment.CreatedAt, &username, &fullName,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		// Populate user if available
+		if username.Valid {
+			user.Username = username.String
+			user.FullName = fullName.String
+			attachment.User = &user
+		}
+
+		attachments = append(attachments, &attachment)
+	}
+
+	return attachments, nil
+}
+
+func (s *PostgresStore) DeleteIncidentAttachment(id string) error {
+	query := `DELETE FROM incident_attachments WHERE id = $1`
+	result, err := s.db.Exec(query, id)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return ErrNotFound
+	}
+
+	return nil
+}
+
+// Enhanced Incident Features - Search Implementation
+
+func (s *PostgresStore) SearchIncidents(req *models.IncidentSearchRequest) ([]*models.Incident, int, error) {
+	// Build WHERE clause dynamically
+	var conditions []string
+	var args []interface{}
+	argIndex := 1
+
+	// Text search using full-text search
+	if req.Query != "" {
+		conditions = append(conditions, fmt.Sprintf("search_vector @@ plainto_tsquery('english', $%d)", argIndex))
+		args = append(args, req.Query)
+		argIndex++
+	}
+
+	// Status filter
+	if len(req.Status) > 0 {
+		statusPlaceholders := make([]string, len(req.Status))
+		for i, status := range req.Status {
+			statusPlaceholders[i] = fmt.Sprintf("$%d", argIndex)
+			args = append(args, string(status))
+			argIndex++
+		}
+		conditions = append(conditions, fmt.Sprintf("status IN (%s)", strings.Join(statusPlaceholders, ",")))
+	}
+
+	// Severity filter
+	if len(req.Severity) > 0 {
+		severityPlaceholders := make([]string, len(req.Severity))
+		for i, severity := range req.Severity {
+			severityPlaceholders[i] = fmt.Sprintf("$%d", argIndex)
+			args = append(args, string(severity))
+			argIndex++
+		}
+		conditions = append(conditions, fmt.Sprintf("severity IN (%s)", strings.Join(severityPlaceholders, ",")))
+	}
+
+	// Assignee filter
+	if req.AssigneeID != nil {
+		conditions = append(conditions, fmt.Sprintf("assignee_id = $%d", argIndex))
+		args = append(args, *req.AssigneeID)
+		argIndex++
+	}
+
+	// Date range filters
+	if req.CreatedAfter != nil {
+		conditions = append(conditions, fmt.Sprintf("created_at >= $%d", argIndex))
+		args = append(args, *req.CreatedAfter)
+		argIndex++
+	}
+
+	if req.CreatedBefore != nil {
+		conditions = append(conditions, fmt.Sprintf("created_at <= $%d", argIndex))
+		args = append(args, *req.CreatedBefore)
+		argIndex++
+	}
+
+	// Tag filter (using EXISTS with subquery)
+	if len(req.Tags) > 0 {
+		tagPlaceholders := make([]string, len(req.Tags))
+		for i, tag := range req.Tags {
+			tagPlaceholders[i] = fmt.Sprintf("$%d", argIndex)
+			args = append(args, tag)
+			argIndex++
+		}
+		conditions = append(conditions, fmt.Sprintf(`
+			EXISTS (
+				SELECT 1 FROM incident_tags t 
+				WHERE t.incident_id = incidents.id 
+				AND t.tag_name IN (%s)
+			)`, strings.Join(tagPlaceholders, ",")))
+	}
+
+	whereClause := ""
+	if len(conditions) > 0 {
+		whereClause = "WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	// Count total matching incidents
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM incidents %s", whereClause)
+	var total int
+	err := s.db.QueryRow(countQuery, args...).Scan(&total)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Build ORDER BY clause
+	orderBy := "created_at"
+	orderDir := "DESC"
+	if req.OrderBy != "" {
+		orderBy = req.OrderBy
+	}
+	if req.OrderDir != "" {
+		orderDir = strings.ToUpper(req.OrderDir)
+	}
+
+	// Calculate offset
+	offset := (req.Page - 1) * req.Limit
+
+	// Build main query
+	query := fmt.Sprintf(`
+		SELECT id, title, description, status, severity, created_at, updated_at,
+		       acked_at, resolved_at, assignee_id, labels
+		FROM incidents
+		%s
+		ORDER BY %s %s
+		LIMIT $%d OFFSET $%d
+	`, whereClause, orderBy, orderDir, argIndex, argIndex+1)
+
+	args = append(args, req.Limit, offset)
+
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var incidents []*models.Incident
+	for rows.Next() {
+		var incident models.Incident
+		var labelsJSON []byte
+
+		err := rows.Scan(
+			&incident.ID, &incident.Title, &incident.Description,
+			&incident.Status, &incident.Severity, &incident.CreatedAt, &incident.UpdatedAt,
+			&incident.AckedAt, &incident.ResolvedAt, &incident.AssigneeID, &labelsJSON,
+		)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		// Parse labels JSON
+		if len(labelsJSON) > 0 {
+			if err := json.Unmarshal(labelsJSON, &incident.Labels); err != nil {
+				return nil, 0, fmt.Errorf("failed to unmarshal labels: %w", err)
+			}
+		}
+
+		incidents = append(incidents, &incident)
+	}
+
+	return incidents, total, nil
 }

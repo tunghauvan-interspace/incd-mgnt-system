@@ -13,6 +13,7 @@ import (
 	"github.com/tunghauvan-interspace/incd-mgnt-system/internal/circuitbreaker"
 	"github.com/tunghauvan-interspace/incd-mgnt-system/internal/idempotency"
 	"github.com/tunghauvan-interspace/incd-mgnt-system/internal/middleware"
+	"github.com/tunghauvan-interspace/incd-mgnt-system/internal/models"
 	"github.com/tunghauvan-interspace/incd-mgnt-system/internal/ratelimit"
 	"github.com/tunghauvan-interspace/incd-mgnt-system/internal/retry"
 	"github.com/tunghauvan-interspace/incd-mgnt-system/internal/services"
@@ -117,6 +118,37 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/incidents", middleware.AuthMiddleware(h.authService)(http.HandlerFunc(h.handleListIncidents)).ServeHTTP)
 	mux.HandleFunc("/api/alerts", middleware.AuthMiddleware(h.authService)(http.HandlerFunc(h.handleListAlerts)).ServeHTTP)
 	mux.HandleFunc("/api/metrics", middleware.OptionalAuthMiddleware(h.authService)(http.HandlerFunc(h.handleGetMetrics)).ServeHTTP) // JSON metrics (deprecated)
+
+	// Enhanced Incident Features - Protected API routes
+	mux.HandleFunc("/api/incidents/search", middleware.AuthMiddleware(h.authService)(http.HandlerFunc(h.handleIncidentSearch)).ServeHTTP)
+	mux.HandleFunc("/api/incidents/bulk", middleware.AuthMiddleware(h.authService)(http.HandlerFunc(h.handleIncidentBulkOperations)).ServeHTTP)
+	mux.HandleFunc("/api/incidents/from-template", middleware.AuthMiddleware(h.authService)(http.HandlerFunc(h.handleIncidentFromTemplate)).ServeHTTP)
+	
+	// Incident sub-resources (comments, tags, timeline, assignments)
+	mux.HandleFunc("/api/incidents/", func(w http.ResponseWriter, r *http.Request) {
+		middleware.AuthMiddleware(h.authService)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			pathParts := strings.Split(r.URL.Path, "/")
+			if len(pathParts) >= 5 {
+				switch pathParts[4] {
+				case "comments":
+					h.handleIncidentComments(w, r)
+				case "timeline":
+					h.handleIncidentTimeline(w, r)
+				case "tags":
+					h.handleIncidentTags(w, r)
+				case "assign":
+					h.handleIncidentAssignment(w, r)
+				default:
+					h.handleIncidents(w, r) // Fallback to existing handler
+				}
+			} else {
+				h.handleIncidents(w, r)
+			}
+		})).ServeHTTP(w, r)
+	})
+
+	// Template management
+	mux.HandleFunc("/api/templates", middleware.AuthMiddleware(h.authService)(http.HandlerFunc(h.handleIncidentTemplates)).ServeHTTP)
 
 	// Prometheus metrics endpoint (public for monitoring)
 	mux.Handle("/metrics", promhttp.Handler())
@@ -579,5 +611,435 @@ func (h *Handler) handleDBStats(w http.ResponseWriter, r *http.Request) {
 // sendNotificationWithCircuitBreaker sends notifications with circuit breaker protection
 func (h *Handler) sendNotificationWithCircuitBreaker(notificationFunc func() error) error {
 	return h.circuitBreaker.Call(notificationFunc)
+}
+
+// Enhanced Incident Features - Comment Handlers
+
+func (h *Handler) handleIncidentComments(w http.ResponseWriter, r *http.Request) {
+	// Extract incident ID from URL path
+	pathParts := strings.Split(r.URL.Path, "/")
+	if len(pathParts) < 4 || pathParts[3] == "" {
+		h.writeErrorResponse(w, "Incident ID is required", http.StatusBadRequest)
+		return
+	}
+	incidentID := pathParts[3]
+
+	switch r.Method {
+	case http.MethodGet:
+		h.handleGetIncidentComments(w, r, incidentID)
+	case http.MethodPost:
+		h.handleAddIncidentComment(w, r, incidentID)
+	default:
+		h.writeErrorResponse(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (h *Handler) handleGetIncidentComments(w http.ResponseWriter, r *http.Request, incidentID string) {
+	comments, err := h.incidentService.GetComments(incidentID)
+	if err != nil {
+		log.Printf("Failed to get comments for incident %s: %v", incidentID, err)
+		h.writeErrorResponse(w, "Failed to retrieve comments", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"comments": comments,
+	})
+}
+
+func (h *Handler) handleAddIncidentComment(w http.ResponseWriter, r *http.Request, incidentID string) {
+	var req struct {
+		Content     string                     `json:"content"`
+		CommentType models.IncidentCommentType `json:"comment_type"`
+		UserID      string                     `json:"user_id"` // In real implementation, extract from auth
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.writeErrorResponse(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	if req.Content == "" {
+		h.writeErrorResponse(w, "Content is required", http.StatusBadRequest)
+		return
+	}
+
+	if req.CommentType == "" {
+		req.CommentType = models.CommentTypeComment
+	}
+
+	if req.UserID == "" {
+		req.UserID = "system" // Default for now
+	}
+
+	comment, err := h.incidentService.AddComment(incidentID, req.UserID, req.Content, req.CommentType, nil)
+	if err != nil {
+		log.Printf("Failed to add comment to incident %s: %v", incidentID, err)
+		h.writeErrorResponse(w, "Failed to add comment", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(comment)
+}
+
+func (h *Handler) handleIncidentTimeline(w http.ResponseWriter, r *http.Request) {
+	// Extract incident ID from URL path
+	pathParts := strings.Split(r.URL.Path, "/")
+	if len(pathParts) < 4 || pathParts[3] == "" {
+		h.writeErrorResponse(w, "Incident ID is required", http.StatusBadRequest)
+		return
+	}
+	incidentID := pathParts[3]
+
+	if r.Method != http.MethodGet {
+		h.writeErrorResponse(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	timeline, err := h.incidentService.GetTimeline(incidentID)
+	if err != nil {
+		log.Printf("Failed to get timeline for incident %s: %v", incidentID, err)
+		h.writeErrorResponse(w, "Failed to retrieve timeline", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"timeline": timeline,
+	})
+}
+
+// Enhanced Incident Features - Tag Handlers
+
+func (h *Handler) handleIncidentTags(w http.ResponseWriter, r *http.Request) {
+	// Extract incident ID from URL path
+	pathParts := strings.Split(r.URL.Path, "/")
+	if len(pathParts) < 4 || pathParts[3] == "" {
+		h.writeErrorResponse(w, "Incident ID is required", http.StatusBadRequest)
+		return
+	}
+	incidentID := pathParts[3]
+
+	switch r.Method {
+	case http.MethodGet:
+		h.handleGetIncidentTags(w, r, incidentID)
+	case http.MethodPost:
+		h.handleAddIncidentTags(w, r, incidentID)
+	case http.MethodDelete:
+		h.handleRemoveIncidentTags(w, r, incidentID)
+	default:
+		h.writeErrorResponse(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (h *Handler) handleGetIncidentTags(w http.ResponseWriter, r *http.Request, incidentID string) {
+	tags, err := h.incidentService.GetTags(incidentID)
+	if err != nil {
+		log.Printf("Failed to get tags for incident %s: %v", incidentID, err)
+		h.writeErrorResponse(w, "Failed to retrieve tags", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"tags": tags,
+	})
+}
+
+func (h *Handler) handleAddIncidentTags(w http.ResponseWriter, r *http.Request, incidentID string) {
+	var req struct {
+		Tags   []models.TemplateTag `json:"tags"`
+		UserID string               `json:"user_id"` // In real implementation, extract from auth
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.writeErrorResponse(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	if len(req.Tags) == 0 {
+		h.writeErrorResponse(w, "At least one tag is required", http.StatusBadRequest)
+		return
+	}
+
+	if req.UserID == "" {
+		req.UserID = "system" // Default for now
+	}
+
+	err := h.incidentService.AddTags(incidentID, req.UserID, req.Tags)
+	if err != nil {
+		log.Printf("Failed to add tags to incident %s: %v", incidentID, err)
+		h.writeErrorResponse(w, "Failed to add tags", http.StatusInternalServerError)
+		return
+	}
+
+	h.writeSuccessResponse(w, "Tags added successfully")
+}
+
+func (h *Handler) handleRemoveIncidentTags(w http.ResponseWriter, r *http.Request, incidentID string) {
+	var req struct {
+		TagNames []string `json:"tag_names"`
+		UserID   string   `json:"user_id"` // In real implementation, extract from auth
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.writeErrorResponse(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	if len(req.TagNames) == 0 {
+		h.writeErrorResponse(w, "At least one tag name is required", http.StatusBadRequest)
+		return
+	}
+
+	if req.UserID == "" {
+		req.UserID = "system" // Default for now
+	}
+
+	err := h.incidentService.RemoveTags(incidentID, req.UserID, req.TagNames)
+	if err != nil {
+		log.Printf("Failed to remove tags from incident %s: %v", incidentID, err)
+		h.writeErrorResponse(w, "Failed to remove tags", http.StatusInternalServerError)
+		return
+	}
+
+	h.writeSuccessResponse(w, "Tags removed successfully")
+}
+
+// Enhanced Incident Features - Template Handlers
+
+func (h *Handler) handleIncidentTemplates(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		h.handleListIncidentTemplates(w, r)
+	case http.MethodPost:
+		h.handleCreateIncidentTemplate(w, r)
+	default:
+		h.writeErrorResponse(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (h *Handler) handleListIncidentTemplates(w http.ResponseWriter, r *http.Request) {
+	templates, err := h.incidentService.ListTemplates()
+	if err != nil {
+		log.Printf("Failed to list incident templates: %v", err)
+		h.writeErrorResponse(w, "Failed to retrieve templates", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"templates": templates,
+	})
+}
+
+func (h *Handler) handleCreateIncidentTemplate(w http.ResponseWriter, r *http.Request) {
+	var template models.IncidentTemplate
+
+	if err := json.NewDecoder(r.Body).Decode(&template); err != nil {
+		h.writeErrorResponse(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	if template.Name == "" {
+		h.writeErrorResponse(w, "Template name is required", http.StatusBadRequest)
+		return
+	}
+
+	if template.TitleTemplate == "" {
+		h.writeErrorResponse(w, "Title template is required", http.StatusBadRequest)
+		return
+	}
+
+	// Set defaults
+	if template.CreatedBy == nil {
+		userID := "system" // In real implementation, extract from auth
+		template.CreatedBy = &userID
+	}
+
+	err := h.incidentService.CreateTemplate(&template)
+	if err != nil {
+		log.Printf("Failed to create incident template: %v", err)
+		h.writeErrorResponse(w, "Failed to create template", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(template)
+}
+
+func (h *Handler) handleIncidentFromTemplate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		h.writeErrorResponse(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req models.CreateIncidentFromTemplateRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.writeErrorResponse(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	if req.TemplateID == "" {
+		h.writeErrorResponse(w, "Template ID is required", http.StatusBadRequest)
+		return
+	}
+
+	userID := "system" // In real implementation, extract from auth
+
+	incident, err := h.incidentService.UseTemplate(&req, userID)
+	if err != nil {
+		log.Printf("Failed to create incident from template: %v", err)
+		h.writeErrorResponse(w, "Failed to create incident from template", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(incident)
+}
+
+// Enhanced Incident Features - Search Handler
+
+func (h *Handler) handleIncidentSearch(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		h.writeErrorResponse(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req models.IncidentSearchRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.writeErrorResponse(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	// Set defaults
+	if req.Page == 0 {
+		req.Page = 1
+	}
+	if req.Limit == 0 {
+		req.Limit = 20
+	}
+	if req.Limit > 100 {
+		req.Limit = 100 // Maximum limit
+	}
+
+	response, err := h.incidentService.SearchIncidents(&req)
+	if err != nil {
+		log.Printf("Failed to search incidents: %v", err)
+		h.writeErrorResponse(w, "Failed to search incidents", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+// Enhanced Incident Features - Bulk Operations Handler
+
+func (h *Handler) handleIncidentBulkOperations(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		h.writeErrorResponse(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req models.BulkOperationRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.writeErrorResponse(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	if len(req.IncidentIDs) == 0 {
+		h.writeErrorResponse(w, "At least one incident ID is required", http.StatusBadRequest)
+		return
+	}
+
+	userID := "system" // In real implementation, extract from auth
+
+	var response *models.BulkOperationResponse
+	var err error
+
+	switch req.Operation {
+	case models.BulkOperationAcknowledge:
+		assigneeID := "system" // Default assignee
+		if assignee, ok := req.Parameters["assignee_id"].(string); ok {
+			assigneeID = assignee
+		}
+		response, err = h.incidentService.BulkAcknowledge(req.IncidentIDs, assigneeID, userID)
+
+	case models.BulkOperationUpdateStatus:
+		statusStr, ok := req.Parameters["status"].(string)
+		if !ok {
+			h.writeErrorResponse(w, "Status parameter is required for status update operation", http.StatusBadRequest)
+			return
+		}
+		status := models.IncidentStatus(statusStr)
+		response, err = h.incidentService.BulkUpdateStatus(req.IncidentIDs, status, userID)
+
+	default:
+		h.writeErrorResponse(w, "Unsupported bulk operation", http.StatusBadRequest)
+		return
+	}
+
+	if err != nil {
+		log.Printf("Failed to perform bulk operation: %v", err)
+		h.writeErrorResponse(w, "Failed to perform bulk operation", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+// Enhanced Incident Features - Assignment Handler
+
+func (h *Handler) handleIncidentAssignment(w http.ResponseWriter, r *http.Request) {
+	// Extract incident ID from URL path
+	pathParts := strings.Split(r.URL.Path, "/")
+	if len(pathParts) < 4 || pathParts[3] == "" {
+		h.writeErrorResponse(w, "Incident ID is required", http.StatusBadRequest)
+		return
+	}
+	incidentID := pathParts[3]
+
+	if r.Method != http.MethodPost {
+		h.writeErrorResponse(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		AssigneeID string `json:"assignee_id"`
+		UserID     string `json:"user_id"` // In real implementation, extract from auth
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.writeErrorResponse(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	if req.AssigneeID == "" {
+		h.writeErrorResponse(w, "Assignee ID is required", http.StatusBadRequest)
+		return
+	}
+
+	if req.UserID == "" {
+		req.UserID = "system" // Default for now
+	}
+
+	err := h.incidentService.AssignIncident(incidentID, req.AssigneeID, req.UserID)
+	if err != nil {
+		log.Printf("Failed to assign incident %s: %v", incidentID, err)
+		h.writeErrorResponse(w, "Failed to assign incident", http.StatusInternalServerError)
+		return
+	}
+
+	h.writeSuccessResponse(w, "Incident assigned successfully")
 }
 
