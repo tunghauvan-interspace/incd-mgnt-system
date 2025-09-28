@@ -45,6 +45,11 @@ type Config struct {
 	TLSCertFile         string
 	TLSKeyFile          string
 
+	// JWT Authentication settings
+	JWTSecret           string
+	JWTExpiration       time.Duration
+	RefreshExpiration   time.Duration
+
 	// Advanced settings
 	WebhookTimeout      time.Duration
 	NotificationTimeout time.Duration
@@ -119,6 +124,11 @@ func LoadConfig() *Config {
 		ServerIdleTimeout:   getEnvDuration("SERVER_IDLE_TIMEOUT", 120*time.Second),
 		TLSCertFile:         getEnv("TLS_CERT_FILE", ""),
 		TLSKeyFile:          getEnv("TLS_KEY_FILE", ""),
+
+		// JWT Authentication settings
+		JWTSecret:           getEnv("JWT_SECRET", generateDefaultJWTSecret()),
+		JWTExpiration:       getEnvDuration("JWT_EXPIRATION", 1*time.Hour),
+		RefreshExpiration:   getEnvDuration("REFRESH_EXPIRATION", 24*time.Hour),
 
 		// Advanced settings
 		WebhookTimeout:      getEnvDuration("WEBHOOK_TIMEOUT", 30*time.Second),
@@ -200,6 +210,11 @@ func (c *Config) Validate() error {
 
 	// Validate TLS settings
 	if err := c.validateTLSConfig(); err != nil {
+		errors = append(errors, *err)
+	}
+
+	// Validate JWT settings
+	if err := c.validateJWTConfig(); err != nil {
 		errors = append(errors, *err)
 	}
 
@@ -365,6 +380,46 @@ func (c *Config) validateTLSConfig() *ValidationError {
 	return nil
 }
 
+// validateJWTConfig validates JWT configuration
+func (c *Config) validateJWTConfig() *ValidationError {
+	if c.JWTSecret == "" {
+		return &ValidationError{
+			Field:   "JWT_SECRET",
+			Message: "cannot be empty",
+		}
+	}
+
+	if len(c.JWTSecret) < 32 {
+		return &ValidationError{
+			Field:   "JWT_SECRET",
+			Message: "must be at least 32 characters long for security",
+		}
+	}
+
+	if c.JWTExpiration <= 0 {
+		return &ValidationError{
+			Field:   "JWT_EXPIRATION",
+			Message: "must be greater than 0",
+		}
+	}
+
+	if c.RefreshExpiration <= 0 {
+		return &ValidationError{
+			Field:   "REFRESH_EXPIRATION",
+			Message: "must be greater than 0",
+		}
+	}
+
+	if c.JWTExpiration >= c.RefreshExpiration {
+		return &ValidationError{
+			Field:   "JWT_EXPIRATION",
+			Message: "should be less than REFRESH_EXPIRATION",
+		}
+	}
+
+	return nil
+}
+
 // HasNotificationConfigured returns true if at least one notification method is configured
 func (c *Config) HasNotificationConfigured() bool {
 	return (c.SlackToken != "" && c.SlackChannel != "") ||
@@ -409,4 +464,9 @@ func getEnvDuration(key string, defaultValue time.Duration) time.Duration {
 		}
 	}
 	return defaultValue
+}
+
+// generateDefaultJWTSecret generates a default JWT secret if none is provided
+func generateDefaultJWTSecret() string {
+	return "default-jwt-secret-please-change-in-production"
 }
