@@ -272,7 +272,11 @@ onMounted(() => {
 <style scoped>
 /* Component-specific styles if needed */
 .hero-badge {
-  @apply inline-flex items-center gap-2 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full text-sm font-semibold;
+  @apply inline-flex items-center bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full text-sm font-semibold;
+}
+
+.hero-badge > svg {
+  @apply mr-2;
 }
 
 .hero-title {
