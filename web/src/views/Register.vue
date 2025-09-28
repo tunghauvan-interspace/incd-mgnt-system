@@ -1,6 +1,13 @@
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center px-4 sm:px-6 lg:px-8">
-    <div class="max-w-5xl w-full">
+  <div class="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 flex items-center justify-center px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+    <!-- Background decorative elements -->
+    <div class="absolute inset-0 overflow-hidden">
+      <div class="absolute -top-40 -right-40 w-80 h-80 rounded-full bg-gradient-to-br from-green-400/20 to-emerald-400/20 blur-3xl"></div>
+      <div class="absolute -bottom-40 -left-40 w-80 h-80 rounded-full bg-gradient-to-tr from-teal-400/20 to-green-400/20 blur-3xl"></div>
+      <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full bg-gradient-to-r from-emerald-400/10 to-teal-400/10 blur-3xl"></div>
+    </div>
+    
+    <div class="max-w-5xl w-full relative z-10">
       <div class="lg:grid-cols-2 lg:grid gap-8">
         <!-- Left Panel - Hero Content -->
         <div class="hidden lg:flex flex-col justify-center">
@@ -55,10 +62,21 @@
 
         <!-- Right Panel - Registration Form -->
         <div class="flex flex-col justify-center">
-          <div class="card max-w-md mx-auto w-full">
+          <!-- Mobile logo/branding -->
+          <div class="lg:hidden text-center mb-8">
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-green-600 to-emerald-600 shadow-lg mb-4">
+              <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+              </svg>
+            </div>
+            <h1 class="text-2xl font-bold text-slate-900">Join Our Team</h1>
+            <p class="text-slate-600 text-sm">Start Your Journey Today</p>
+          </div>
+          
+          <div class="card max-w-md mx-auto w-full backdrop-blur-lg bg-white/70 border border-white/20 shadow-2xl">
             <!-- Header -->
             <div class="text-center mb-8">
-              <h2 class="text-3xl font-bold text-slate-900">Create Account</h2>
+              <h2 class="text-3xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">Create Account</h2>
               <p class="mt-2 text-slate-600">Join thousands of teams managing incidents effectively</p>
             </div>
 
@@ -68,30 +86,38 @@
             </div>
 
             <!-- Registration Form -->
-            <form @submit.prevent="handleRegister" class="space-y-6">
+            <form @submit.prevent="handleRegister" class="space-y-5">
               <!-- Full Name Field -->
               <div class="form-group">
-                <label for="fullName" class="block text-sm font-medium text-slate-700 mb-2">
-                  Full Name *
-                </label>
-                <input
-                  id="fullName"
-                  v-model="registerForm.fullName"
-                  type="text"
-                  autocomplete="name"
-                  required
-                  :class="[
-                    'w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200',
-                    validation.errors.value.fullName 
-                      ? 'border-red-300 bg-red-50' 
-                      : 'border-slate-300 bg-white hover:border-slate-400'
-                  ]"
-                  :aria-invalid="!!validation.errors.value.fullName"
-                  :aria-describedby="validation.errors.value.fullName ? 'fullName-error' : undefined"
-                  placeholder="Enter your full name"
-                  @input="validation.clearError('fullName')"
-                />
-                <p v-if="validation.errors.value.fullName" id="fullName-error" class="mt-1 text-sm text-red-600">
+                <div class="relative">
+                  <input
+                    id="fullName"
+                    v-model="registerForm.fullName"
+                    type="text"
+                    autocomplete="name"
+                    required
+                    :class="[
+                      'w-full px-4 py-4 pt-6 border rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 peer placeholder-transparent bg-white/50 backdrop-blur-sm',
+                      validation.errors.value.fullName 
+                        ? 'border-red-300 bg-red-50/50' 
+                        : 'border-slate-200 hover:border-slate-300'
+                    ]"
+                    :aria-invalid="!!validation.errors.value.fullName"
+                    :aria-describedby="validation.errors.value.fullName ? 'fullName-error' : undefined"
+                    placeholder="Enter your full name"
+                    @input="validation.clearError('fullName')"
+                  />
+                  <label 
+                    for="fullName" 
+                    class="absolute left-4 top-2 text-xs font-medium text-slate-600 transition-all duration-200 peer-placeholder-shown:text-base peer-placeholder-shown:text-slate-400 peer-placeholder-shown:top-4 peer-focus:top-2 peer-focus:text-xs peer-focus:text-green-600 peer-focus:font-medium"
+                  >
+                    Full Name *
+                  </label>
+                </div>
+                <p v-if="validation.errors.value.fullName" id="fullName-error" class="mt-2 text-sm text-red-600 flex items-center">
+                  <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                  </svg>
                   {{ validation.errors.value.fullName }}
                 </p>
               </div>
@@ -243,22 +269,32 @@
 
               <!-- Terms and Privacy -->
               <div class="form-group">
-                <label class="flex items-start space-x-3">
-                  <input
-                    v-model="registerForm.acceptTerms"
-                    type="checkbox"
-                    required
-                    class="mt-1 w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 focus:ring-2"
-                    :aria-describedby="validation.errors.value.acceptTerms ? 'terms-error' : undefined"
-                  />
-                  <span class="text-sm text-slate-700 leading-5">
+                <label class="flex items-start group cursor-pointer">
+                  <div class="relative">
+                    <input
+                      v-model="registerForm.acceptTerms"
+                      type="checkbox"
+                      required
+                      class="sr-only"
+                      :aria-describedby="validation.errors.value.acceptTerms ? 'terms-error' : undefined"
+                    />
+                    <div class="w-5 h-5 rounded border-2 border-slate-300 group-hover:border-green-500 transition-colors duration-200 flex items-center justify-center" :class="registerForm.acceptTerms ? 'bg-green-600 border-green-600' : 'bg-white'">
+                      <svg v-if="registerForm.acceptTerms" class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                      </svg>
+                    </div>
+                  </div>
+                  <span class="ml-3 text-sm text-slate-700 leading-5 group-hover:text-slate-900 transition-colors duration-200">
                     I agree to the 
-                    <a href="#" class="text-blue-600 hover:text-blue-700 hover:underline font-medium">Terms of Service</a>
+                    <a href="#" class="text-green-600 hover:text-green-700 hover:underline font-medium">Terms of Service</a>
                     and 
-                    <a href="#" class="text-blue-600 hover:text-blue-700 hover:underline font-medium">Privacy Policy</a>
+                    <a href="#" class="text-green-600 hover:text-green-700 hover:underline font-medium">Privacy Policy</a>
                   </span>
                 </label>
-                <p v-if="validation.errors.value.acceptTerms" id="terms-error" class="mt-1 text-sm text-red-600">
+                <p v-if="validation.errors.value.acceptTerms" id="terms-error" class="mt-2 text-sm text-red-600 flex items-center">
+                  <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                  </svg>
                   {{ validation.errors.value.acceptTerms }}
                 </p>
               </div>
@@ -267,12 +303,12 @@
               <button
                 type="submit"
                 :disabled="authStore.isLoading || !isFormValid"
-                class="btn-primary w-full py-3 px-4 text-base font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                class="btn-primary w-full py-4 px-4 text-base font-semibold rounded-xl shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 transform hover:scale-105 active:scale-95 bg-gradient-to-r from-green-600 via-green-700 to-emerald-700 hover:from-green-700 hover:via-green-800 hover:to-emerald-800"
                 :aria-describedby="authStore.isLoading ? 'register-status' : undefined"
               >
                 <svg
                   v-if="authStore.isLoading"
-                  class="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                  class="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
                   xmlns="http://www.w3.org/2000/svg"
                   fill="none"
                   viewBox="0 0 24 24"
@@ -286,12 +322,12 @@
             </form>
 
             <!-- Login Link -->
-            <div class="mt-6 text-center">
+            <div class="mt-8 text-center">
               <p class="text-sm text-slate-600">
                 Already have an account?
                 <router-link
                   to="/login"
-                  class="text-blue-600 hover:text-blue-700 hover:underline font-medium focus:outline-none focus:underline"
+                  class="text-green-600 hover:text-green-700 hover:underline font-semibold focus:outline-none focus:underline ml-1 transition-colors duration-200"
                 >
                   Sign in here
                 </router-link>
@@ -424,7 +460,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* Component-specific styles if needed */
+/* Component-specific styles */
 .hero-badge {
   @apply inline-flex items-center bg-green-50 text-green-700 px-3 py-1.5 rounded-full text-sm font-semibold;
 }
@@ -442,7 +478,8 @@ onMounted(() => {
 }
 
 .card {
-  @apply bg-white rounded-2xl shadow-xl p-8 border border-slate-100;
+  @apply bg-white/70 backdrop-blur-lg rounded-3xl shadow-2xl p-8 border border-white/20;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.2);
 }
 
 .form-group {
@@ -450,11 +487,35 @@ onMounted(() => {
 }
 
 .error-box {
-  @apply bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg text-sm;
+  @apply bg-red-50/80 backdrop-blur-sm border border-red-200/50 text-red-800 px-4 py-3 rounded-xl text-sm shadow-sm;
 }
 
 .btn-primary {
-  @apply bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2;
+  @apply bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-green-700 hover:to-emerald-700 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2;
+  transform: translateY(0);
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 25px 50px -12px rgba(34, 197, 94, 0.25);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* Enhanced input styling */
+input[type="text"], input[type="password"], input[type="email"] {
+  backdrop-filter: blur(10px);
+}
+
+input:focus {
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1), 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+/* Custom checkbox styling */
+.checkbox-group {
+  position: relative;
 }
 
 /* Responsive adjustments */
@@ -465,6 +526,29 @@ onMounted(() => {
   
   .hidden.lg\:flex {
     display: none;
+  }
+  
+  .card {
+    @apply mx-4;
+  }
+}
+
+/* Mobile-specific enhancements */
+@media (max-width: 640px) {
+  .card {
+    @apply p-6 mx-3;
+  }
+  
+  .btn-primary {
+    @apply py-4 text-lg;
+  }
+  
+  input[type="text"], input[type="password"], input[type="email"] {
+    @apply py-4 text-base;
+  }
+  
+  .form-group {
+    @apply space-y-2;
   }
 }
 </style>

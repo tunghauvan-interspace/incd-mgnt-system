@@ -1,6 +1,13 @@
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center px-4 sm:px-6 lg:px-8">
-    <div class="max-w-5xl w-full">
+  <div class="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+    <!-- Background decorative elements -->
+    <div class="absolute inset-0 overflow-hidden">
+      <div class="absolute -top-40 -right-40 w-80 h-80 rounded-full bg-gradient-to-br from-blue-400/20 to-purple-400/20 blur-3xl"></div>
+      <div class="absolute -bottom-40 -left-40 w-80 h-80 rounded-full bg-gradient-to-tr from-indigo-400/20 to-pink-400/20 blur-3xl"></div>
+      <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full bg-gradient-to-r from-cyan-400/10 to-blue-400/10 blur-3xl"></div>
+    </div>
+    
+    <div class="max-w-5xl w-full relative z-10">
       <div class="lg:grid-cols-2 lg:grid gap-8">
         <!-- Left Panel - Hero Content -->
         <div class="hidden lg:flex flex-col justify-center">
@@ -55,10 +62,21 @@
 
         <!-- Right Panel - Login Form -->
         <div class="flex flex-col justify-center">
-          <div class="card max-w-md mx-auto w-full">
+          <!-- Mobile logo/branding -->
+          <div class="lg:hidden text-center mb-8">
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-purple-600 shadow-lg mb-4">
+              <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+              </svg>
+            </div>
+            <h1 class="text-2xl font-bold text-slate-900">Incident Management</h1>
+            <p class="text-slate-600 text-sm">Secure & Reliable Platform</p>
+          </div>
+          
+          <div class="card max-w-md mx-auto w-full backdrop-blur-lg bg-white/70 border border-white/20 shadow-2xl">
             <!-- Header -->
             <div class="text-center mb-8">
-              <h2 class="text-3xl font-bold text-slate-900">Welcome Back</h2>
+              <h2 class="text-3xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">Welcome Back</h2>
               <p class="mt-2 text-slate-600">Sign in to your account to continue</p>
             </div>
 
@@ -71,36 +89,41 @@
             <form @submit.prevent="handleLogin" class="space-y-6">
               <!-- Username/Email Field -->
               <div class="form-group">
-                <label for="username" class="block text-sm font-medium text-slate-700 mb-2">
-                  Email or Username
-                </label>
-                <input
-                  id="username"
-                  v-model="loginForm.identifier"
-                  type="text"
-                  autocomplete="username"
-                  required
-                  :class="[
-                    'w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200',
-                    validation.errors.value.identifier 
-                      ? 'border-red-300 bg-red-50' 
-                      : 'border-slate-300 bg-white hover:border-slate-400'
-                  ]"
-                  :aria-invalid="!!validation.errors.value.identifier"
-                  :aria-describedby="validation.errors.value.identifier ? 'username-error' : undefined"
-                  placeholder="Enter your email or username"
-                  @input="validation.clearError('identifier')"
-                />
-                <p v-if="validation.errors.value.identifier" id="username-error" class="mt-1 text-sm text-red-600">
+                <div class="relative">
+                  <input
+                    id="username"
+                    v-model="loginForm.identifier"
+                    type="text"
+                    autocomplete="username"
+                    required
+                    :class="[
+                      'w-full px-4 py-4 pt-6 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 peer placeholder-transparent bg-white/50 backdrop-blur-sm',
+                      validation.errors.value.identifier 
+                        ? 'border-red-300 bg-red-50/50' 
+                        : 'border-slate-200 hover:border-slate-300'
+                    ]"
+                    :aria-invalid="!!validation.errors.value.identifier"
+                    :aria-describedby="validation.errors.value.identifier ? 'username-error' : undefined"
+                    placeholder="Enter your email or username"
+                    @input="validation.clearError('identifier')"
+                  />
+                  <label 
+                    for="username" 
+                    class="absolute left-4 top-2 text-xs font-medium text-slate-600 transition-all duration-200 peer-placeholder-shown:text-base peer-placeholder-shown:text-slate-400 peer-placeholder-shown:top-4 peer-focus:top-2 peer-focus:text-xs peer-focus:text-blue-600 peer-focus:font-medium"
+                  >
+                    Email or Username
+                  </label>
+                </div>
+                <p v-if="validation.errors.value.identifier" id="username-error" class="mt-2 text-sm text-red-600 flex items-center">
+                  <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                  </svg>
                   {{ validation.errors.value.identifier }}
                 </p>
               </div>
 
               <!-- Password Field -->
               <div class="form-group">
-                <label for="password" class="block text-sm font-medium text-slate-700 mb-2">
-                  Password
-                </label>
                 <div class="relative">
                   <input
                     id="password"
@@ -109,20 +132,26 @@
                     autocomplete="current-password"
                     required
                     :class="[
-                      'w-full px-4 py-3 pr-12 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200',
+                      'w-full px-4 py-4 pt-6 pr-12 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 peer placeholder-transparent bg-white/50 backdrop-blur-sm',
                       validation.errors.value.password 
-                        ? 'border-red-300 bg-red-50' 
-                        : 'border-slate-300 bg-white hover:border-slate-400'
+                        ? 'border-red-300 bg-red-50/50' 
+                        : 'border-slate-200 hover:border-slate-300'
                     ]"
                     :aria-invalid="!!validation.errors.value.password"
                     :aria-describedby="validation.errors.value.password ? 'password-error' : undefined"
                     placeholder="Enter your password"
                     @input="validation.clearError('password')"
                   />
+                  <label 
+                    for="password" 
+                    class="absolute left-4 top-2 text-xs font-medium text-slate-600 transition-all duration-200 peer-placeholder-shown:text-base peer-placeholder-shown:text-slate-400 peer-placeholder-shown:top-4 peer-focus:top-2 peer-focus:text-xs peer-focus:text-blue-600 peer-focus:font-medium"
+                  >
+                    Password
+                  </label>
                   <button
                     type="button"
                     @click="showPassword = !showPassword"
-                    class="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600"
+                    class="absolute inset-y-0 right-0 flex items-center pr-4 text-slate-400 hover:text-slate-600 transition-colors duration-200"
                     :aria-label="showPassword ? 'Hide password' : 'Show password'"
                   >
                     <svg v-if="!showPassword" class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
@@ -135,24 +164,34 @@
                     </svg>
                   </button>
                 </div>
-                <p v-if="validation.errors.value.password" id="password-error" class="mt-1 text-sm text-red-600">
+                <p v-if="validation.errors.value.password" id="password-error" class="mt-2 text-sm text-red-600 flex items-center">
+                  <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                  </svg>
                   {{ validation.errors.value.password }}
                 </p>
               </div>
 
               <!-- Remember Me & Forgot Password -->
               <div class="flex items-center justify-between">
-                <label class="flex items-center">
-                  <input
-                    v-model="loginForm.rememberMe"
-                    type="checkbox"
-                    class="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 focus:ring-2"
-                  />
-                  <span class="ml-2 text-sm text-slate-700">Remember me</span>
+                <label class="flex items-center group cursor-pointer">
+                  <div class="relative">
+                    <input
+                      v-model="loginForm.rememberMe"
+                      type="checkbox"
+                      class="sr-only"
+                    />
+                    <div class="w-5 h-5 rounded border-2 border-slate-300 group-hover:border-blue-500 transition-colors duration-200 flex items-center justify-center" :class="loginForm.rememberMe ? 'bg-blue-600 border-blue-600' : 'bg-white'">
+                      <svg v-if="loginForm.rememberMe" class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                      </svg>
+                    </div>
+                  </div>
+                  <span class="ml-3 text-sm text-slate-700 group-hover:text-slate-900 transition-colors duration-200">Remember me</span>
                 </label>
                 <router-link
                   to="/forgot-password"
-                  class="text-sm text-blue-600 hover:text-blue-700 hover:underline focus:outline-none focus:underline"
+                  class="text-sm text-blue-600 hover:text-blue-700 hover:underline focus:outline-none focus:underline font-medium transition-colors duration-200"
                 >
                   Forgot password?
                 </router-link>
@@ -162,12 +201,12 @@
               <button
                 type="submit"
                 :disabled="authStore.isLoading || !isFormValid"
-                class="btn-primary w-full py-3 px-4 text-base font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                class="btn-primary w-full py-4 px-4 text-base font-semibold rounded-xl shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 transform hover:scale-105 active:scale-95 bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 hover:from-blue-700 hover:via-blue-800 hover:to-indigo-800"
                 :aria-describedby="authStore.isLoading ? 'login-status' : undefined"
               >
                 <svg
                   v-if="authStore.isLoading"
-                  class="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                  class="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
                   xmlns="http://www.w3.org/2000/svg"
                   fill="none"
                   viewBox="0 0 24 24"
@@ -181,12 +220,12 @@
             </form>
 
             <!-- Register Link -->
-            <div class="mt-6 text-center">
+            <div class="mt-8 text-center">
               <p class="text-sm text-slate-600">
                 Don't have an account?
                 <router-link
                   to="/register"
-                  class="text-blue-600 hover:text-blue-700 hover:underline font-medium focus:outline-none focus:underline"
+                  class="text-blue-600 hover:text-blue-700 hover:underline font-semibold focus:outline-none focus:underline ml-1 transition-colors duration-200"
                 >
                   Sign up here
                 </router-link>
@@ -270,7 +309,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* Component-specific styles if needed */
+/* Component-specific styles */
 .hero-badge {
   @apply inline-flex items-center bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full text-sm font-semibold;
 }
@@ -288,7 +327,8 @@ onMounted(() => {
 }
 
 .card {
-  @apply bg-white rounded-2xl shadow-xl p-8 border border-slate-100;
+  @apply bg-white/70 backdrop-blur-lg rounded-3xl shadow-2xl p-8 border border-white/20;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.2);
 }
 
 .form-group {
@@ -296,11 +336,30 @@ onMounted(() => {
 }
 
 .error-box {
-  @apply bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg text-sm;
+  @apply bg-red-50/80 backdrop-blur-sm border border-red-200/50 text-red-800 px-4 py-3 rounded-xl text-sm shadow-sm;
 }
 
 .btn-primary {
-  @apply bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2;
+  @apply bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2;
+  transform: translateY(0);
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 25px 50px -12px rgba(59, 130, 246, 0.25);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* Enhanced input styling */
+input[type="text"], input[type="password"], input[type="email"] {
+  backdrop-filter: blur(10px);
+}
+
+input:focus {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1), 0 10px 25px -5px rgba(0, 0, 0, 0.1);
 }
 
 /* Responsive adjustments */
@@ -311,6 +370,25 @@ onMounted(() => {
   
   .hidden.lg\:flex {
     display: none;
+  }
+  
+  .card {
+    @apply mx-4;
+  }
+}
+
+/* Mobile-specific enhancements */
+@media (max-width: 640px) {
+  .card {
+    @apply p-6 mx-3;
+  }
+  
+  .btn-primary {
+    @apply py-4 text-lg;
+  }
+  
+  input[type="text"], input[type="password"], input[type="email"] {
+    @apply py-4 text-base;
   }
 }
 </style>
