@@ -7,6 +7,7 @@ This document outlines the planned user interface architecture, component struct
 - [Application Structure](#application-structure)
 - [Component Architecture](#component-architecture)
 - [Design System](#design-system)
+- [Layout Design](#layout-design)
 - [Routing Structure](#routing-structure)
 - [State Management](#state-management)
 - [API Integration](#api-integration)
@@ -329,6 +330,492 @@ interface PageHeaderProps {
   --color-border: #334155;
 }
 ```
+
+---
+
+## Layout Design
+
+### Desktop Layout Architecture
+
+#### Overall Application Layout (1440px+ desktop)
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│ Header Navigation (Fixed)                                    Height: 64px │
+├─────────────────────────────────────────────────────────────────────────┤
+│ Sidebar │                Main Content Area                               │
+│ 280px   │                                                               │
+│ (Fixed) │  ┌─────────────────────────────────────────────────────────┐  │
+│         │  │ Page Header                               Height: 80px   │  │
+│         │  ├─────────────────────────────────────────────────────────┤  │
+│         │  │                                                         │  │
+│         │  │ Content Area (Scrollable)                              │  │
+│         │  │                                                         │  │
+│         │  │                                                         │  │
+│         │  └─────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Header Navigation Component
+**Dimensions & Behavior:**
+- **Height**: 64px (fixed)
+- **Width**: 100vw (full viewport)
+- **Position**: Fixed top, z-index: 1000
+- **Background**: White/Dark theme adaptive
+- **Shadow**: 0 1px 3px rgba(0, 0, 0, 0.1)
+
+**Internal Layout (Left to Right):**
+```
+┌─────┬─────────────────┬───────────────────────────┬─────────┬─────────┐
+│Logo │ Breadcrumbs     │        Search Bar         │Alerts   │Profile  │
+│120px│ Flex-1          │         320px             │ 40px    │ 200px   │
+└─────┴─────────────────┴───────────────────────────┴─────────┴─────────┘
+```
+
+**Component Behaviors:**
+- **Logo**: Clickable, navigates to dashboard
+- **Breadcrumbs**: Auto-generated based on current route, max 4 levels
+- **Search Bar**: Global search with autocomplete, 300ms debounce
+- **Alerts**: Badge counter, dropdown on click showing recent notifications
+- **Profile**: Dropdown menu with user info, settings, logout
+
+#### Sidebar Navigation Component
+**Dimensions & Behavior:**
+- **Width**: 280px (expanded), 72px (collapsed)
+- **Height**: calc(100vh - 64px)
+- **Position**: Fixed left, below header
+- **Transition**: 0.3s ease-in-out for collapse/expand
+
+**Menu Structure:**
+```
+┌─────────────────────────────┐
+│ Dashboard         [Icon]    │ 48px height
+├─────────────────────────────┤
+│ Incidents (12)    [Icon]    │ 48px height
+├─────────────────────────────┤
+│ Alerts (5)        [Icon]    │ 48px height
+├─────────────────────────────┤
+│ Reports           [Icon]    │ 48px height
+├─────────────────────────────┤
+│ Users             [Icon]    │ 48px height (if permission)
+├─────────────────────────────┤
+│ Settings          [Icon]    │ 48px height
+└─────────────────────────────┘
+```
+
+**Collapsed State (72px wide):**
+- Show only icons (24px size)
+- Tooltip on hover showing menu text
+- Active state indicator (3px left border)
+
+#### Main Content Area
+**Dimensions & Behavior:**
+- **Width**: calc(100vw - 280px) when sidebar expanded
+- **Width**: calc(100vw - 72px) when sidebar collapsed
+- **Margin-left**: Adjusts based on sidebar state
+- **Padding**: 24px on all sides
+- **Background**: #f8fafc (light theme), #0f172a (dark theme)
+
+### Page-Specific Layouts
+
+#### Dashboard Layout
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ Page Header (Welcome back, John)                    Height: 80px │
+├─────────────────────────────────────────────────────────────────┤
+│ Stats Cards Row                                     Height: 120px│
+│ ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────┐     │
+│ │Open        │ │High Sev    │ │Avg Response│ │Active Users│     │
+│ │Incidents   │ │Incidents   │ │Time        │ │           │     │
+│ │    24      │ │     8      │ │   4.2min   │ │    12     │     │
+│ └────────────┘ └────────────┘ └────────────┘ └────────────┘     │
+├─────────────────────────────────────────────────────────────────┤
+│ Charts Section                                      Height: 400px│
+│ ┌─────────────────────────────────┐ ┌─────────────────────────┐   │
+│ │ Incident Trends (Line Chart)    │ │ Severity Distribution   │   │
+│ │          60% width              │ │      40% width          │   │
+│ │                                 │ │    (Doughnut Chart)     │   │
+│ └─────────────────────────────────┘ └─────────────────────────┘   │
+├─────────────────────────────────────────────────────────────────┤
+│ Recent Incidents Table                              Min-height: 400px│
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Stats Cards Behavior:**
+- **Size**: 280px width × 120px height
+- **Gap**: 24px between cards
+- **Hover**: Subtle lift effect (translateY: -2px, shadow increase)
+- **Click**: Navigate to detailed view
+- **Animation**: Count-up animation on load (1.5s duration)
+
+#### Incidents List Layout
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ Page Header + Actions                               Height: 80px │
+│ ┌─────────────────────────────┐ ┌─────────────────────────────┐ │
+│ │ Incidents (156)             │ │ [Create] [Export] [Filter]  │ │
+│ └─────────────────────────────┘ └─────────────────────────────┘ │
+├─────────────────────────────────────────────────────────────────┤
+│ Filters Bar (Collapsible)                          Height: 56px │
+│ [Status ▼] [Severity ▼] [Assignee ▼] [Date Range] [Clear All]   │
+├─────────────────────────────────────────────────────────────────┤
+│ Incidents Table/Cards                               Flex: 1     │
+│                                                                 │
+│ ┌─────────────────────────────────────────────────────────────┐ │
+│ │ [□] ID-001  High    Server Down      John   2h ago    Open │ │
+│ ├─────────────────────────────────────────────────────────────┤ │
+│ │ [□] ID-002  Medium  DB Connection    Jane   4h ago    Open │ │
+│ ├─────────────────────────────────────────────────────────────┤ │
+│ │ ... more rows ...                                           │ │
+│ └─────────────────────────────────────────────────────────────┘ │
+├─────────────────────────────────────────────────────────────────┤
+│ Pagination                                          Height: 60px │
+│                              [1] [2] [3] ... [10] Next         │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Table Row Behavior:**
+- **Height**: 64px per row
+- **Hover**: Background color change (#f1f5f9)
+- **Selection**: Checkbox with bulk actions
+- **Click**: Navigate to incident detail
+- **Status Badge**: Color-coded, 8px height indicator
+- **Severity Badge**: Icon + text, hover shows description
+
+#### Incident Detail Layout
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ Header with Actions                                 Height: 100px│
+│ ┌─────────────────────┐ ┌─────────────────────────────────────┐ │
+│ │← Back | ID-001      │ │[Acknowledge] [Assign] [Close] [...] │ │
+│ │High Severity        │ │                                     │ │
+│ └─────────────────────┘ └─────────────────────────────────────┘ │
+├─────────────────────────────────────────────────────────────────┤
+│ Main Content (2-Column)                                         │
+│ ┌─────────────────────────────────────┐ ┌─────────────────────┐ │
+│ │ Left Panel (Details)                │ │ Right Panel (Info)  │ │
+│ │              70% width              │ │      30% width      │ │
+│ │                                     │ │                     │ │
+│ │ ┌─────────────────────────────────┐ │ │ ┌─────────────────┐ │ │
+│ │ │ Description                     │ │ │ │ Status: Open    │ │ │
+│ │ │ Timeline                        │ │ │ │ Created: 2h ago │ │ │
+│ │ │ Related Alerts                  │ │ │ │ Assignee: John  │ │ │
+│ │ │ Comments                        │ │ │ │ Severity: High  │ │ │
+│ │ └─────────────────────────────────┘ │ │ └─────────────────┘ │ │
+│ │                                     │ │ ┌─────────────────┐ │ │
+│ │                                     │ │ │ Actions History │ │ │
+│ │                                     │ │ │ Notifications   │ │ │
+│ │                                     │ │ └─────────────────┘ │ │
+│ └─────────────────────────────────────┘ └─────────────────────┘ │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Component Behaviors:**
+- **Timeline**: Vertical timeline with timestamps, auto-scroll to latest
+- **Comments**: Real-time updates, markdown support
+- **Status Updates**: Animated transitions between states
+- **Action Buttons**: Loading states, confirmation modals for destructive actions
+
+
+#### Login Page Layout (Two-column, right-shifted)
+
+```
+┌───────────────────────────────────────────────────────────────────────────┐
+│                                                                           │
+│  Left Gap (Illustration / empty)   │         Right Content Area           │
+│  35% width (reserved)              │  65% width (vertical centered)       │
+│                                    │                                      │
+│                                    │     ┌─────────────────────────────┐  │
+│                                    │     │           [Logo]            │  │
+│                                    │     │     Incident Management     │  │
+│                                    │     │         System              │  │
+│                                    │     └─────────────────────────────┘  │
+│                                    │                                      │
+│                                    │     ┌─────────────────────────────┐  │
+│                                    │     │           Sign In           │  │
+│                                    │     │  Email                      │  │
+│                                    │     │  [input field]              │  │
+│                                    │     │  Password                   │  │
+│                                    │     │  [input field] [eye icon]   │  │
+│                                    │     │  [□] Remember me            │  │
+│                                    │     │  [Sign In] (full width)     │  │
+│                                    │     └─────────────────────────────┘  │
+│                                    │                                      │
+└───────────────────────────────────────────────────────────────────────────┘
+```
+
+Design notes:
+- Left column: reserved space (35% of viewport width) for brand illustration, product tagline or left intentionally blank. Keeps visual balance and creates a right-shifted form.
+- Right column: content area vertically centered; the login card sits with max-width 420px and aligns visually to the right column center.
+
+Layout Specifications:
+- Page container: 100vw × 100vh, display: grid with two columns (35% / 65%).
+- Login card: max-width: 420px; padding: 24px; border-radius: 12px; box-shadow: var(--card-shadow);
+- Left gap: min-width 280px on wide screens; can host illustration or remain empty.
+- Form fields: 44px height, 16px horizontal padding, 8px border-radius.
+- Primary button: full width of card, 48px height.
+
+Behavior & UX:
+- The right-shifted layout guides user's focus to the right while keeping branding visible.
+- Logo in card is optional; clicking it navigates home.
+- Email field auto-focus; client-side validation with inline error messages.
+- Password toggle (eye icon) and optional strength hint (if enabled) below the field.
+- Remember me persisted via secure cookie/localStorage per policy.
+- Sign-in button shows spinner and disabled state while authenticating.
+- Inline error area below the form for server errors (slides in, aria-live="assertive").
+
+Responsive rules:
+- Desktop (>=1024px): Two-column grid (35%/65%). Left column visible and provides visual balance.
+- Tablet (768px–1023px): Left column reduces to 30%; right column contains the card centered. If viewport narrow, left column can collapse to 20%.
+- Mobile (<768px): Single column stack; left column content collapses above the card (or hidden) and the card becomes full width with 16px page padding.
+
+Accessibility & Security:
+- Focus order: email -> password -> remember -> sign-in -> secondary links.
+- ARIA: form fields have aria-label/aria-describedby for errors.
+- Rate limiting and captcha appear as previously specified (server-side).
+
+#### Register Page Layout (Two-column, right-shifted)
+
+```
+┌───────────────────────────────────────────────────────────────────────────┐
+│                                                                           │
+│  Left Gap (Illustration / empty)   │         Right Content Area           │
+│  35% width (reserved)              │  65% width (vertical centered)       │
+│                                    │                                      │
+│                                    │     ┌─────────────────────────────┐  │
+│                                    │     │           [Logo]            │  │
+│                                    │     │     Incident Management     │  │
+│                                    │     │         System              │  │
+│                                    │     └─────────────────────────────┘  │
+│                                    │                                      │
+│                                    │     ┌─────────────────────────────┐  │
+│                                    │     │        Create Account       │  │
+│                                    │     │  Full Name                  │  │
+│                                    │     │  [input field]              │  │
+│                                    │     │  Email                      │  │
+│                                    │     │  [input field]              │  │
+│                                    │     │  Password                   │  │
+│                                    │     │  [input field] [eye icon]   │  │
+│                                    │     │  Strength bar & hint        │  │
+│                                    │     │  Confirm Password           │  │
+│                                    │     │  [input field]              │  │
+│                                    │     │  [□] I agree to Terms       │  │
+│                                    │     │  [Create Account] (full)    │  │
+│                                    │     └─────────────────────────────┘  │
+│                                    │                                      │
+└───────────────────────────────────────────────────────────────────────────┘
+```
+
+Design notes:
+- Layout mirrors login: left reserved column (35%), right column contains the registration card (max-width 480px).
+- Use visual hierarchy: labels, compact spacing, and clear affordances for password strength and validation.
+
+Layout Specifications:
+- Grid: two columns (35% / 65%) on wide screens.
+- Register card: max-width 480px; padding: 28px; border-radius: 12px; subtle shadow.
+- Form fields: 44px height; consistent spacing (12–16px gap) between inputs.
+
+Behavior & UX:
+- Real-time validation for name/email/password; password strength meter updates as user types.
+- Confirm password verifies equality with main password field and shows immediate feedback.
+- Terms checkbox required; Create Account button disabled until validations pass.
+- Server-side errors displayed in inline banner with aria-live and focus management.
+
+Responsive rules:
+- Desktop (>=1024px): Two-column layout (left gap visible).
+- Tablet (768px–1023px): Left column reduces; card remains centered in right column.
+- Mobile (<768px): Single column; left gap hidden and card uses full width with 16px padding.
+
+Security & UX:
+- Captcha shown after repeated failed attempts or suspicious activity.
+- Rate limiting enforced server-side; client shows explanatory messages.
+- Email verification flow triggered after successful sign-up; token and expiry rules handled by backend.
+
+### Component Specifications
+
+#### Auth Layout (Shared)
+**Overall Structure:**
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Auth Content Area                            │
+│                    (Centered, Full Height)                      │
+│                                                                 │
+│                    ┌─────────────────────────────┐              │
+│                    │       Page Content          │              │
+│                    │       (Login/Register)      │              │
+│                    └─────────────────────────────┘              │
+│                                                                 │
+│                    Footer Links                                 │
+│                    [Privacy] [Terms] [Support]                   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Layout Specifications:**
+- **Background**: Full-screen gradient or branded background image
+- **Content Container**: Flexbox centered both horizontally and vertically
+- **Max Width**: 400px for login, 480px for register
+- **Footer**: Fixed bottom, small text links, neutral color
+- **Branding**: Consistent logo placement across all auth pages
+
+**Responsive Considerations:**
+- **Mobile**: Full width with 16px padding, footer becomes inline
+- **Tablet**: Centered with background visible on sides
+- **Desktop**: Centered with optional background pattern/image
+
+### Component Specifications
+
+#### Button Component Sizes
+```css
+/* Size Specifications */
+.btn-sm {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 14px;
+  border-radius: 6px;
+}
+
+.btn-md {
+  height: 40px;
+  padding: 0 16px;
+  font-size: 16px;
+  border-radius: 8px;
+}
+
+.btn-lg {
+  height: 48px;
+  padding: 0 24px;
+  font-size: 18px;
+  border-radius: 8px;
+}
+```
+
+**Button Behaviors:**
+- **Hover**: 150ms ease transition, brightness(1.1)
+- **Active**: Scale(0.98) for 100ms
+- **Loading**: Spinner replaces text, maintains width
+- **Disabled**: opacity: 0.5, pointer-events: none
+
+#### Modal Component Sizes
+```css
+/* Modal Size Specifications */
+.modal-sm {
+  width: 400px;
+  max-width: 90vw;
+}
+
+.modal-md {
+  width: 600px;
+  max-width: 90vw;
+}
+
+.modal-lg {
+  width: 800px;
+  max-width: 95vw;
+}
+
+.modal-xl {
+  width: 1200px;
+  max-width: 95vw;
+}
+```
+
+**Modal Behaviors:**
+- **Open Animation**: fadeIn 200ms + slideUp 20px
+- **Close Animation**: fadeOut 150ms + slideDown 20px
+- **Backdrop Click**: Close modal (unless persistent)
+- **Escape Key**: Close modal
+- **Focus Management**: Trap focus within modal
+
+#### Card Component
+```css
+.card {
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  background: white;
+  transition: all 0.2s ease;
+}
+
+.card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+
+.card-padding {
+  padding: 24px;
+}
+```
+
+#### Form Input Specifications
+```css
+.input-field {
+  height: 44px;
+  padding: 0 16px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  font-size: 16px;
+  transition: all 0.2s ease;
+}
+
+.input-field:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.input-error {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
+```
+
+### Responsive Breakpoint Behaviors
+
+#### Tablet Layout (768px - 1023px)
+- **Sidebar**: Overlay mode, hidden by default
+- **Header**: Hamburger menu appears (left side)
+- **Content**: Full width with 16px padding
+- **Cards**: 2-column grid instead of 4-column
+- **Tables**: Horizontal scroll with sticky first column
+
+#### Mobile Layout (< 768px)
+- **Navigation**: Bottom tab bar (60px height)
+- **Header**: Simplified, search becomes modal
+- **Content**: Single column, 12px padding
+- **Cards**: Stack vertically, compact mode
+- **Forms**: Full-width inputs, larger touch targets (48px min)
+- **Modals**: Full-screen on small devices
+
+### Performance Behaviors
+
+#### Loading States
+- **Skeleton Loading**: Grey placeholder shapes matching content
+- **Progressive Loading**: Show basic layout first, then populate
+- **Lazy Loading**: Images and components load when in viewport
+- **Infinite Scroll**: Load more items as user scrolls (incidents list)
+
+#### Animation Guidelines
+- **Micro-interactions**: 150-300ms duration
+- **Page transitions**: 200-400ms duration
+- **Loading spinners**: 1s rotation cycle
+- **Hover effects**: 150ms ease-out
+- **Focus indicators**: Immediate (0ms)
+
+### Accessibility Specifications
+
+#### Focus Management
+- **Focus Visible**: 2px solid #3b82f6 outline
+- **Tab Order**: Logical flow, skip links provided
+- **Screen Readers**: ARIA labels, live regions for updates
+
+#### Color Contrast
+- **Text**: Minimum 4.5:1 contrast ratio
+- **Interactive Elements**: Minimum 3:1 contrast ratio
+- **Status Indicators**: Not relying solely on color
+
+#### Keyboard Navigation
+- **Arrow Keys**: Navigate within components
+- **Enter/Space**: Activate buttons and links
+- **Escape**: Close modals and dropdowns
+- **Tab/Shift+Tab**: Navigate between interactive elements
 
 ---
 
