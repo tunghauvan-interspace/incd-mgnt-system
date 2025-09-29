@@ -158,9 +158,9 @@ func (s *NotificationService) sendNotificationToChannel(incident *models.Inciden
 		})
 	}
 
-	// Send notification with retry
+	// Send notification with retry and tracking
 	ctx := context.Background()
-	err := s.retryer.Execute(ctx, func() error {
+	err := s.executeWithNotificationRetry(ctx, history, func() error {
 		return s.deliverNotification(history, template, incident, channel)
 	})
 
@@ -229,9 +229,31 @@ func (s *NotificationService) deliverNotification(history *models.NotificationHi
 		subject = fmt.Sprintf("Incident Alert: %s", incident.Title)
 	}
 	
-	// Store rendered content in history
+	// Store rendered content and recipient in history
 	history.Subject = subject
 	history.Content = content
+	
+	// Extract recipient based on channel type
+	switch channel.Type {
+	case "slack":
+		if slackChannel := channel.Config["channel"]; slackChannel != "" {
+			history.Recipient = slackChannel
+		} else {
+			history.Recipient = s.config.SlackChannel
+		}
+	case "email":
+		if emailTo := channel.Config["to"]; emailTo != "" {
+			history.Recipient = emailTo
+		} else {
+			history.Recipient = "configured-email-recipients"
+		}
+	case "telegram":
+		if chatID := channel.Config["chat_id"]; chatID != "" {
+			history.Recipient = chatID
+		} else {
+			history.Recipient = s.config.TelegramChatID
+		}
+	}
 	
 	// Send based on channel type
 	switch channel.Type {
@@ -615,9 +637,34 @@ func (s *NotificationService) isInQuietHours(config *models.QuietHoursConfig) bo
 
 // getTemplateForChannel gets the appropriate template for a channel and notification type
 func (s *NotificationService) getTemplateForChannel(channel *models.NotificationChannel, notificationType string) *models.NotificationTemplate {
-	// Check if channel has custom templates
+	// First try to get template from database
+	template, err := s.store.GetNotificationTemplateByType(notificationType, channel.Type)
+	if err == nil && template != nil {
+		s.logger.Debug("Using database template for notification", map[string]interface{}{
+			"template_id": template.ID,
+			"template_name": template.Name,
+			"notification_type": notificationType,
+			"channel_type": channel.Type,
+		})
+		return template
+	}
+	
+	// If database template not found, log and continue with fallback
+	if err != nil && err != storage.ErrNotFound {
+		s.logger.Error("Failed to get template from database", map[string]interface{}{
+			"notification_type": notificationType,
+			"channel_type": channel.Type,
+			"error": err.Error(),
+		})
+	}
+	
+	// Check if channel has custom templates (legacy support)
 	if channel.Templates != nil {
 		if templateContent, exists := channel.Templates[notificationType]; exists && templateContent != "" {
+			s.logger.Debug("Using legacy channel custom template", map[string]interface{}{
+				"channel_id": channel.ID,
+				"notification_type": notificationType,
+			})
 			return &models.NotificationTemplate{
 				ID:      fmt.Sprintf("%s_%s_%s", channel.ID, notificationType, "custom"),
 				Name:    fmt.Sprintf("Custom %s - %s", notificationType, channel.Name),
@@ -628,8 +675,21 @@ func (s *NotificationService) getTemplateForChannel(channel *models.Notification
 		}
 	}
 	
-	// Fall back to default template
-	return s.templateService.GetDefaultTemplate(notificationType, channel.Type)
+	// Fall back to template service default template
+	defaultTemplate := s.templateService.GetDefaultTemplate(notificationType, channel.Type)
+	if defaultTemplate != nil {
+		s.logger.Debug("Using template service default", map[string]interface{}{
+			"notification_type": notificationType,
+			"channel_type": channel.Type,
+		})
+	} else {
+		s.logger.Warn("No template found, will use legacy message generation", map[string]interface{}{
+			"notification_type": notificationType,
+			"channel_type": channel.Type,
+		})
+	}
+	
+	return defaultTemplate
 }
 
 // generateLegacyMessage generates a legacy-format message for backward compatibility
@@ -670,28 +730,52 @@ func (s *NotificationService) generateLegacyMessage(incident *models.Incident, n
 	}
 }
 
-// storeNotificationHistory stores notification history (placeholder implementation)
+// storeNotificationHistory stores notification history in the database
 func (s *NotificationService) storeNotificationHistory(history *models.NotificationHistory) error {
-	// In a real implementation, this would store to the database
-	// For now, we'll just log it
-	s.logger.Info("Storing notification history", map[string]interface{}{
+	if err := s.store.CreateNotificationHistory(history); err != nil {
+		s.logger.Error("Failed to create notification history", map[string]interface{}{
+			"id":         history.ID,
+			"incident_id": history.IncidentID,
+			"channel_id": history.ChannelID,
+			"type":       history.Type,
+			"status":     history.Status,
+			"error":      err.Error(),
+		})
+		return fmt.Errorf("failed to store notification history: %w", err)
+	}
+	
+	s.logger.Info("Notification history stored", map[string]interface{}{
 		"id":         history.ID,
 		"incident_id": history.IncidentID,
 		"channel_id": history.ChannelID,
 		"type":       history.Type,
 		"status":     history.Status,
 	})
+	
 	return nil
 }
 
-// updateNotificationHistory updates notification history (placeholder implementation)
+// updateNotificationHistory updates notification history in the database
 func (s *NotificationService) updateNotificationHistory(history *models.NotificationHistory) error {
-	// In a real implementation, this would update the database record
-	s.logger.Info("Updating notification history", map[string]interface{}{
-		"id":     history.ID,
-		"status": history.Status,
-		"error":  history.ErrorMsg,
+	history.UpdatedAt = time.Now()
+	
+	if err := s.store.UpdateNotificationHistory(history); err != nil {
+		s.logger.Error("Failed to update notification history", map[string]interface{}{
+			"id":     history.ID,
+			"status": history.Status,
+			"error":  err.Error(),
+		})
+		return fmt.Errorf("failed to update notification history: %w", err)
+	}
+	
+	s.logger.Info("Notification history updated", map[string]interface{}{
+		"id":         history.ID,
+		"status":     history.Status,
+		"retry_count": history.RetryCount,
+		"sent_at":    history.SentAt,
+		"delivered_at": history.DeliveredAt,
 	})
+	
 	return nil
 }
 
@@ -730,4 +814,80 @@ func (s *NotificationService) SendTestNotification(incident *models.Incident, ch
 	})
 
 	return nil
+}
+
+// executeWithNotificationRetry executes a function with retry logic, tracking retry attempts in notification history
+func (s *NotificationService) executeWithNotificationRetry(ctx context.Context, history *models.NotificationHistory, fn retry.RetryableFunc) error {
+var lastErr error
+maxAttempts := 3 // Match the retry policy
+
+for attempt := 0; attempt < maxAttempts; attempt++ {
+// Update retry count
+history.RetryCount = attempt
+history.UpdatedAt = time.Now()
+
+// Set status to retrying if this is a retry attempt
+if attempt > 0 {
+history.Status = models.DeliveryStatusRetrying
+if err := s.store.UpdateNotificationHistory(history); err != nil {
+s.logger.Error("Failed to update retry status", map[string]interface{}{
+"history_id": history.ID,
+"attempt": attempt,
+"error": err.Error(),
+})
+}
+}
+
+// Check context cancellation
+select {
+case <-ctx.Done():
+return fmt.Errorf("operation cancelled: %w", ctx.Err())
+default:
+}
+
+// Execute the function
+err := fn()
+if err == nil {
+return nil // Success
+}
+
+lastErr = err
+
+// Check if error is retryable
+if !retry.DefaultIsRetryable(err) {
+s.logger.Info("Non-retryable error encountered", map[string]interface{}{
+"history_id": history.ID,
+"error": err.Error(),
+})
+return fmt.Errorf("non-retryable error: %w", err)
+}
+
+// Dont sleep after the last attempt
+if attempt == maxAttempts-1 {
+break
+}
+
+// Calculate delay with exponential backoff (2^attempt * 2 seconds, max 30 seconds)
+delay := time.Duration(1<<uint(attempt)) * 2 * time.Second
+if delay > 30*time.Second {
+delay = 30 * time.Second
+}
+
+s.logger.Info("Retrying notification delivery", map[string]interface{}{
+"history_id": history.ID,
+"attempt": attempt + 1,
+"delay_seconds": delay.Seconds(),
+"error": err.Error(),
+})
+
+// Sleep with context cancellation support
+select {
+case <-ctx.Done():
+return fmt.Errorf("operation cancelled during retry: %w", ctx.Err())
+case <-time.After(delay):
+// Continue to next attempt
+}
+}
+
+return fmt.Errorf("max retry attempts (%d) exceeded, last error: %w", maxAttempts, lastErr)
 }
