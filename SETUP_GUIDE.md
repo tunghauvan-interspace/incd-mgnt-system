@@ -115,7 +115,7 @@ cd web/frontend
 npm install
 npm run build
 
-# Assets will be created in web/frontend/dist/
+# Assets will be created in web/dist/
 ```
 
 ### 3. Deploy with Docker
@@ -146,7 +146,7 @@ server {
     
     # Serve Vue.js static files
     location / {
-        root /path/to/web/frontend/dist;
+        root /path/to/web/dist;
         try_files $uri $uri/ /index.html;
     }
     
@@ -163,7 +163,7 @@ server {
 
 ```bash
 # Copy built assets to Go backend (if serving from Go)
-cp -r web/frontend/dist/* web/static/
+cp -r web/dist/* web/static/
 ```
 
 ## Configuration
@@ -221,7 +221,7 @@ The Vue.js frontend automatically proxies API requests to the backend during dev
 ### Frontend (Vue.js + TypeScript)
 
 ```
-web/frontend/
+web/
 ├── src/
 │   ├── components/     # Reusable UI components
 │   ├── views/          # Page components (Dashboard, Incidents, Alerts)

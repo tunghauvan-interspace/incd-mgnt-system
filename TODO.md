@@ -52,7 +52,7 @@ This document outlines the prioritized tasks for developing and enhancing the In
 
 ### Web Folder Restructuring
 - [x] Migrate from vanilla HTML/CSS/JS to Vue.js + TypeScript framework
-- [x] Create `web/frontend/` directory structure for Vue.js application
+- [x] Create `web/` directory structure for Vue.js application
 - [x] Setup Vue.js project with Vite build tool, TypeScript, Vue Router, and Pinia
 - [x] Install necessary dependencies (Axios for API calls, Chart.js for visualizations)
 - [x] Configure development environment and build scripts

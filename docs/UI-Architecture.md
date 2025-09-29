@@ -46,7 +46,7 @@ This document outlines the planned user interface architecture, component struct
 
 ### Project Structure (Planned)
 ```
-web/frontend/
+web/
 ├── public/                     # Static assets
 │   ├── favicon.ico
 │   ├── manifest.json          # PWA manifest

@@ -1,13 +1,13 @@
 FROM node:18-alpine AS frontend-builder
 
-WORKDIR /app/web/frontend
+WORKDIR /app/web
 
 # Copy frontend package files
-COPY web/frontend/package*.json ./
+COPY web/package*.json ./
 RUN npm ci
 
 # Copy frontend source code and build
-COPY web/frontend/ ./
+COPY web/ ./
 RUN npm run build
 
 FROM golang:1.24-alpine AS backend-builder
