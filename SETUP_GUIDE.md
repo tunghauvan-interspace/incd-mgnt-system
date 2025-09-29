@@ -49,7 +49,7 @@ nano .env
 
 ```bash
 # Navigate to frontend directory
-cd web/frontend
+cd web
 
 # Install Node.js dependencies
 npm install
@@ -111,7 +111,7 @@ cp .env.example .env
 
 ```bash
 # Build Vue.js application for production
-cd web/frontend
+cd web
 npm install
 npm run build
 
@@ -254,7 +254,7 @@ cmd/
 ### Frontend Commands
 
 ```bash
-cd web/frontend
+cd web
 
 # Development
 npm run dev          # Start development server
@@ -312,7 +312,7 @@ docker-compose up -d frontend backend          # Start app services
 
 **1. Node modules not found**
 ```bash
-cd web/frontend
+cd web
 rm -rf node_modules package-lock.json
 npm install
 ```

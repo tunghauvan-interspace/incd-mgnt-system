@@ -3,12 +3,12 @@
 Use these concise, repository-specific notes to help AI coding agents be productive immediately.
 
 1. Big picture
-   - This is a monorepo with a Go backend (cmd/server) and a Vue 3 + TypeScript frontend (web/frontend). See `Low-Level-Architecture.md` for detailed flows.
+   - This is a monorepo with a Go backend (cmd/server) and a Vue 3 + TypeScript frontend (web). See `Low-Level-Architecture.md` for detailed flows.
    - Main runtime: backend handles Alertmanager webhooks, groups alerts into incidents, persists (in-memory or Postgres), and sends notifications (Slack/Email/Telegram).
    - Key folders: `cmd/` (entrypoints), `internal/handlers`, `internal/services`, `internal/storage`, `web/` (frontend), `migrations/` (DB schema).
 
 2. How to run locally (developer-first)
-   - Frontend dev server: `cd web/frontend && npm install && npm run dev` (port 5173). Uses Vite with hot reload and API proxy to backend.
+   - Frontend dev server: `cd web && npm install && npm run dev` (port 5173). Uses Vite with hot reload and API proxy to backend.
    - Backend dev: `go run cmd/server/main.go` (port from PORT env) or `go install github.com/cosmtrek/air@latest && air` for hot reload.
    - Infrastructure: `docker-compose up -d` (Postgres, Prometheus, Alertmanager, Node Exporter).
    - Full local stack: `docker-compose --profile development up -d` (includes frontend dev server via `docker-compose.app.yaml`).
