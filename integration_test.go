@@ -37,10 +37,17 @@ func TestIntegration_MetricsAndMonitoring(t *testing.T) {
 	logger := services.NewLogger("debug", true)
 	incidentService := services.NewIncidentService(store, metricsService)
 	alertService := services.NewAlertService(store, incidentService, metricsService)
-	notificationService := services.NewNotificationService(&config.Config{})
+	
+	// Create template service and notification service with all dependencies
+	templateService := services.NewNotificationTemplateService(logger)
+	notificationService := services.NewNotificationService(&config.Config{JWTSecret: "test-secret"}, store, templateService, metricsService, logger)
+	
+	// Create auth service and user service for handler
+	authService := services.NewAuthService("test-secret", 24*time.Hour, 7*24*time.Hour)
+	userService := services.NewUserService(store, authService, logger)
 
 	// Initialize handlers
-	handler := handlers.NewHandler(incidentService, alertService, notificationService, metricsService, logger, store)
+	handler := handlers.NewHandler(incidentService, alertService, notificationService, metricsService, logger, store, userService, authService)
 
 	// Setup routes with middleware
 	mux := http.NewServeMux()
@@ -423,10 +430,17 @@ func TestIntegration_DatabaseMonitoring(t *testing.T) {
 	logger := services.NewLogger(cfg.LogLevel, true)
 	incidentService := services.NewIncidentService(store, metricsService)
 	alertService := services.NewAlertService(store, incidentService, metricsService)
-	notificationService := services.NewNotificationService(cfg)
+	
+	// Create template service and notification service with all dependencies  
+	templateService := services.NewNotificationTemplateService(logger)
+	notificationService := services.NewNotificationService(cfg, store, templateService, metricsService, logger)
+	
+	// Create user and auth services for handler
+	authService := services.NewAuthService(cfg.JWTSecret, 24*time.Hour, 7*24*time.Hour)
+	userService := services.NewUserService(store, authService, logger)
 
 	// Initialize handlers
-	handler := handlers.NewHandler(incidentService, alertService, notificationService, metricsService, logger, store)
+	handler := handlers.NewHandler(incidentService, alertService, notificationService, metricsService, logger, store, userService, authService)
 
 	// Setup routes
 	mux := http.NewServeMux()
@@ -525,10 +539,17 @@ func TestIntegration_EndToEndMonitoring(t *testing.T) {
 	logger := services.NewLogger(cfg.LogLevel, true)
 	incidentService := services.NewIncidentService(store, metricsService)
 	alertService := services.NewAlertService(store, incidentService, metricsService)
-	notificationService := services.NewNotificationService(cfg)
+	
+	// Create template service and notification service with all dependencies  
+	templateService := services.NewNotificationTemplateService(logger)
+	notificationService := services.NewNotificationService(cfg, store, templateService, metricsService, logger)
+	
+	// Create user and auth services for handler
+	authService := services.NewAuthService(cfg.JWTSecret, 24*time.Hour, 7*24*time.Hour)
+	userService := services.NewUserService(store, authService, logger)
 
 	// Initialize handlers
-	handler := handlers.NewHandler(incidentService, alertService, notificationService, metricsService, logger, store)
+	handler := handlers.NewHandler(incidentService, alertService, notificationService, metricsService, logger, store, userService, authService)
 
 	// Setup routes with full middleware stack
 	mux := http.NewServeMux()

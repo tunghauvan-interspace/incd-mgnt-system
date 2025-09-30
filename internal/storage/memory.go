@@ -108,6 +108,28 @@ type Store interface {
 	// Enhanced Incident Features - Search
 	SearchIncidents(req *models.IncidentSearchRequest) ([]*models.Incident, int, error)
 
+	// Notification Templates
+	GetNotificationTemplate(id string) (*models.NotificationTemplate, error)
+	GetNotificationTemplateByType(notificationType, channel string) (*models.NotificationTemplate, error)
+	ListNotificationTemplates() ([]*models.NotificationTemplate, error)
+	CreateNotificationTemplate(template *models.NotificationTemplate) error
+	UpdateNotificationTemplate(template *models.NotificationTemplate) error
+	DeleteNotificationTemplate(id string) error
+
+	// Notification History
+	CreateNotificationHistory(history *models.NotificationHistory) error
+	GetNotificationHistory(id string) (*models.NotificationHistory, error)
+	ListNotificationHistory(incidentID string) ([]*models.NotificationHistory, error)
+	UpdateNotificationHistory(history *models.NotificationHistory) error
+	DeleteNotificationHistory(id string) error
+
+	// Notification Batches
+	CreateNotificationBatch(batch *models.NotificationBatch) error
+	GetNotificationBatch(id string) (*models.NotificationBatch, error)
+	ListNotificationBatches(channelID string) ([]*models.NotificationBatch, error)
+	UpdateNotificationBatch(batch *models.NotificationBatch) error
+	DeleteNotificationBatch(id string) error
+
 	// Close closes the store connection
 	Close() error
 }
@@ -133,6 +155,10 @@ type MemoryStore struct {
 	incidentTags         map[string][]*models.IncidentTag     // incidentID -> tags
 	incidentTemplates    map[string]*models.IncidentTemplate  // templateID -> template
 	incidentAttachments  map[string][]*models.IncidentAttachment // incidentID -> attachments
+	// Notification tracking
+	notificationTemplates map[string]*models.NotificationTemplate // templateID -> template
+	notificationHistory   map[string]*models.NotificationHistory  // historyID -> history
+	notificationBatches   map[string]*models.NotificationBatch    // batchID -> batch
 	mu                   sync.RWMutex
 }
 
@@ -158,6 +184,10 @@ func NewMemoryStore() (*MemoryStore, error) {
 		incidentTags:         make(map[string][]*models.IncidentTag),
 		incidentTemplates:    make(map[string]*models.IncidentTemplate),
 		incidentAttachments:  make(map[string][]*models.IncidentAttachment),
+		// Notification tracking
+		notificationTemplates: make(map[string]*models.NotificationTemplate),
+		notificationHistory:   make(map[string]*models.NotificationHistory),
+		notificationBatches:   make(map[string]*models.NotificationBatch),
 	}, nil
 }
 
@@ -1200,4 +1230,188 @@ func (s *MemoryStore) GetUserActivities(userID string, limit int) ([]*models.Use
 	}
 
 	return result, nil
+}
+
+// Notification Templates Implementation
+func (s *MemoryStore) GetNotificationTemplate(id string) (*models.NotificationTemplate, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	template, exists := s.notificationTemplates[id]
+	if !exists {
+		return nil, ErrNotFound
+	}
+	return template, nil
+}
+
+func (s *MemoryStore) GetNotificationTemplateByType(notificationType, channel string) (*models.NotificationTemplate, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	// Look for default template first
+	for _, template := range s.notificationTemplates {
+		if template.Type == notificationType && template.Channel == channel && template.IsDefault {
+			return template, nil
+		}
+	}
+
+	// If no default found, return first matching template
+	for _, template := range s.notificationTemplates {
+		if template.Type == notificationType && template.Channel == channel {
+			return template, nil
+		}
+	}
+
+	return nil, ErrNotFound
+}
+
+func (s *MemoryStore) ListNotificationTemplates() ([]*models.NotificationTemplate, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	templates := make([]*models.NotificationTemplate, 0, len(s.notificationTemplates))
+	for _, template := range s.notificationTemplates {
+		templates = append(templates, template)
+	}
+	return templates, nil
+}
+
+func (s *MemoryStore) CreateNotificationTemplate(template *models.NotificationTemplate) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.notificationTemplates[template.ID] = template
+	return nil
+}
+
+func (s *MemoryStore) UpdateNotificationTemplate(template *models.NotificationTemplate) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.notificationTemplates[template.ID]; !exists {
+		return ErrNotFound
+	}
+	s.notificationTemplates[template.ID] = template
+	return nil
+}
+
+func (s *MemoryStore) DeleteNotificationTemplate(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.notificationTemplates[id]; !exists {
+		return ErrNotFound
+	}
+	delete(s.notificationTemplates, id)
+	return nil
+}
+
+// Notification History Implementation
+func (s *MemoryStore) CreateNotificationHistory(history *models.NotificationHistory) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.notificationHistory[history.ID] = history
+	return nil
+}
+
+func (s *MemoryStore) GetNotificationHistory(id string) (*models.NotificationHistory, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	history, exists := s.notificationHistory[id]
+	if !exists {
+		return nil, ErrNotFound
+	}
+	return history, nil
+}
+
+func (s *MemoryStore) ListNotificationHistory(incidentID string) ([]*models.NotificationHistory, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var histories []*models.NotificationHistory
+	for _, history := range s.notificationHistory {
+		if incidentID == "" || history.IncidentID == incidentID {
+			histories = append(histories, history)
+		}
+	}
+	return histories, nil
+}
+
+func (s *MemoryStore) UpdateNotificationHistory(history *models.NotificationHistory) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.notificationHistory[history.ID]; !exists {
+		return ErrNotFound
+	}
+	s.notificationHistory[history.ID] = history
+	return nil
+}
+
+func (s *MemoryStore) DeleteNotificationHistory(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.notificationHistory[id]; !exists {
+		return ErrNotFound
+	}
+	delete(s.notificationHistory, id)
+	return nil
+}
+
+// Notification Batches Implementation
+func (s *MemoryStore) CreateNotificationBatch(batch *models.NotificationBatch) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.notificationBatches[batch.ID] = batch
+	return nil
+}
+
+func (s *MemoryStore) GetNotificationBatch(id string) (*models.NotificationBatch, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	batch, exists := s.notificationBatches[id]
+	if !exists {
+		return nil, ErrNotFound
+	}
+	return batch, nil
+}
+
+func (s *MemoryStore) ListNotificationBatches(channelID string) ([]*models.NotificationBatch, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var batches []*models.NotificationBatch
+	for _, batch := range s.notificationBatches {
+		if channelID == "" || batch.ChannelID == channelID {
+			batches = append(batches, batch)
+		}
+	}
+	return batches, nil
+}
+
+func (s *MemoryStore) UpdateNotificationBatch(batch *models.NotificationBatch) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.notificationBatches[batch.ID]; !exists {
+		return ErrNotFound
+	}
+	s.notificationBatches[batch.ID] = batch
+	return nil
+}
+
+func (s *MemoryStore) DeleteNotificationBatch(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.notificationBatches[id]; !exists {
+		return ErrNotFound
+	}
+	delete(s.notificationBatches, id)
+	return nil
 }

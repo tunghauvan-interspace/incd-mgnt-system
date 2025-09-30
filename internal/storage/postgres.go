@@ -810,24 +810,203 @@ func (s *PostgresStore) DeleteAlert(id string) error {
 // Placeholder implementations for other entity types (to maintain interface compatibility)
 // These will be implemented in subsequent phases
 
+// Notification Channel implementations
 func (s *PostgresStore) GetNotificationChannel(id string) (*models.NotificationChannel, error) {
-	return nil, fmt.Errorf("notification channels not yet implemented in postgres store")
+	query := `
+		SELECT id, name, type, config, enabled, preferences, created_at, updated_at
+		FROM notification_channels
+		WHERE id = $1
+	`
+	
+	var channel models.NotificationChannel
+	var configJSON, preferencesJSON []byte
+	
+	err := s.db.QueryRow(query, id).Scan(
+		&channel.ID,
+		&channel.Name,
+		&channel.Type,
+		&configJSON,
+		&channel.Enabled,
+		&preferencesJSON,
+		&channel.CreatedAt,
+		&channel.UpdatedAt,
+	)
+	
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("failed to get notification channel: %w", err)
+	}
+	
+	// Parse JSON fields
+	if len(configJSON) > 0 {
+		if err := json.Unmarshal(configJSON, &channel.Config); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal config: %w", err)
+		}
+	}
+	
+	if len(preferencesJSON) > 0 {
+		if err := json.Unmarshal(preferencesJSON, &channel.Preferences); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal preferences: %w", err)
+		}
+	}
+	
+	return &channel, nil
 }
 
 func (s *PostgresStore) ListNotificationChannels() ([]*models.NotificationChannel, error) {
-	return nil, fmt.Errorf("notification channels not yet implemented in postgres store")
+	query := `
+		SELECT id, name, type, config, enabled, preferences, created_at, updated_at
+		FROM notification_channels
+		ORDER BY name
+	`
+	
+	rows, err := s.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list notification channels: %w", err)
+	}
+	defer rows.Close()
+	
+	var channels []*models.NotificationChannel
+	for rows.Next() {
+		var channel models.NotificationChannel
+		var configJSON, preferencesJSON []byte
+		
+		err := rows.Scan(
+			&channel.ID,
+			&channel.Name,
+			&channel.Type,
+			&configJSON,
+			&channel.Enabled,
+			&preferencesJSON,
+			&channel.CreatedAt,
+			&channel.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan notification channel: %w", err)
+		}
+		
+		// Parse JSON fields
+		if len(configJSON) > 0 {
+			if err := json.Unmarshal(configJSON, &channel.Config); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal config: %w", err)
+			}
+		}
+		
+		if len(preferencesJSON) > 0 {
+			if err := json.Unmarshal(preferencesJSON, &channel.Preferences); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal preferences: %w", err)
+			}
+		}
+		
+		channels = append(channels, &channel)
+	}
+	
+	return channels, rows.Err()
 }
 
 func (s *PostgresStore) CreateNotificationChannel(channel *models.NotificationChannel) error {
-	return fmt.Errorf("notification channels not yet implemented in postgres store")
+	query := `
+		INSERT INTO notification_channels (id, name, type, config, enabled, preferences, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	`
+	
+	configJSON, err := json.Marshal(channel.Config)
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+	
+	var preferencesJSON []byte
+	if channel.Preferences != nil {
+		preferencesJSON, err = json.Marshal(channel.Preferences)
+		if err != nil {
+			return fmt.Errorf("failed to marshal preferences: %w", err)
+		}
+	}
+	
+	_, err = s.db.Exec(query,
+		channel.ID,
+		channel.Name,
+		channel.Type,
+		configJSON,
+		channel.Enabled,
+		preferencesJSON,
+		channel.CreatedAt,
+		channel.UpdatedAt,
+	)
+	
+	if err != nil {
+		return fmt.Errorf("failed to create notification channel: %w", err)
+	}
+	
+	return nil
 }
 
 func (s *PostgresStore) UpdateNotificationChannel(channel *models.NotificationChannel) error {
-	return fmt.Errorf("notification channels not yet implemented in postgres store")
+	query := `
+		UPDATE notification_channels
+		SET name = $2, type = $3, config = $4, enabled = $5, preferences = $6, updated_at = $7
+		WHERE id = $1
+	`
+	
+	configJSON, err := json.Marshal(channel.Config)
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+	
+	var preferencesJSON []byte
+	if channel.Preferences != nil {
+		preferencesJSON, err = json.Marshal(channel.Preferences)
+		if err != nil {
+			return fmt.Errorf("failed to marshal preferences: %w", err)
+		}
+	}
+	
+	result, err := s.db.Exec(query,
+		channel.ID,
+		channel.Name,
+		channel.Type,
+		configJSON,
+		channel.Enabled,
+		preferencesJSON,
+		channel.UpdatedAt,
+	)
+	
+	if err != nil {
+		return fmt.Errorf("failed to update notification channel: %w", err)
+	}
+	
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+	
+	if rowsAffected == 0 {
+		return ErrNotFound
+	}
+	
+	return nil
 }
 
 func (s *PostgresStore) DeleteNotificationChannel(id string) error {
-	return fmt.Errorf("notification channels not yet implemented in postgres store")
+	query := `DELETE FROM notification_channels WHERE id = $1`
+	
+	result, err := s.db.Exec(query, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete notification channel: %w", err)
+	}
+	
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+	
+	if rowsAffected == 0 {
+		return ErrNotFound
+	}
+	
+	return nil
 }
 
 func (s *PostgresStore) GetEscalationPolicy(id string) (*models.EscalationPolicy, error) {
@@ -2138,4 +2317,694 @@ func (s *PostgresStore) SearchIncidents(req *models.IncidentSearchRequest) ([]*m
 	}
 
 	return incidents, total, nil
+}
+
+// Notification Templates implementations
+func (s *PostgresStore) GetNotificationTemplate(id string) (*models.NotificationTemplate, error) {
+	query := `
+		SELECT id, name, type, channel, subject, body, variables, is_default, 
+		       user_id, org_id, created_at, updated_at
+		FROM notification_templates
+		WHERE id = $1
+	`
+	
+	var template models.NotificationTemplate
+	var variablesJSON []byte
+	var userID, orgID sql.NullString
+	
+	err := s.db.QueryRow(query, id).Scan(
+		&template.ID,
+		&template.Name,
+		&template.Type,
+		&template.Channel,
+		&template.Subject,
+		&template.Body,
+		&variablesJSON,
+		&template.IsDefault,
+		&userID,
+		&orgID,
+		&template.CreatedAt,
+		&template.UpdatedAt,
+	)
+	
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("failed to get notification template: %w", err)
+	}
+	
+	// Parse JSON fields
+	if len(variablesJSON) > 0 {
+		if err := json.Unmarshal(variablesJSON, &template.Variables); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal variables: %w", err)
+		}
+	}
+	
+	template.UserID = userID.String
+	template.OrgID = orgID.String
+	
+	return &template, nil
+}
+
+func (s *PostgresStore) GetNotificationTemplateByType(notificationType, channel string) (*models.NotificationTemplate, error) {
+	query := `
+		SELECT id, name, type, channel, subject, body, variables, is_default, 
+		       user_id, org_id, created_at, updated_at
+		FROM notification_templates
+		WHERE type = $1 AND channel = $2
+		ORDER BY is_default DESC, created_at ASC
+		LIMIT 1
+	`
+	
+	var template models.NotificationTemplate
+	var variablesJSON []byte
+	var userID, orgID sql.NullString
+	
+	err := s.db.QueryRow(query, notificationType, channel).Scan(
+		&template.ID,
+		&template.Name,
+		&template.Type,
+		&template.Channel,
+		&template.Subject,
+		&template.Body,
+		&variablesJSON,
+		&template.IsDefault,
+		&userID,
+		&orgID,
+		&template.CreatedAt,
+		&template.UpdatedAt,
+	)
+	
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("failed to get notification template by type: %w", err)
+	}
+	
+	// Parse JSON fields
+	if len(variablesJSON) > 0 {
+		if err := json.Unmarshal(variablesJSON, &template.Variables); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal variables: %w", err)
+		}
+	}
+	
+	template.UserID = userID.String
+	template.OrgID = orgID.String
+	
+	return &template, nil
+}
+
+func (s *PostgresStore) ListNotificationTemplates() ([]*models.NotificationTemplate, error) {
+	query := `
+		SELECT id, name, type, channel, subject, body, variables, is_default, 
+		       user_id, org_id, created_at, updated_at
+		FROM notification_templates
+		ORDER BY type, channel, is_default DESC, name
+	`
+	
+	rows, err := s.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list notification templates: %w", err)
+	}
+	defer rows.Close()
+	
+	var templates []*models.NotificationTemplate
+	for rows.Next() {
+		var template models.NotificationTemplate
+		var variablesJSON []byte
+		var userID, orgID sql.NullString
+		
+		err := rows.Scan(
+			&template.ID,
+			&template.Name,
+			&template.Type,
+			&template.Channel,
+			&template.Subject,
+			&template.Body,
+			&variablesJSON,
+			&template.IsDefault,
+			&userID,
+			&orgID,
+			&template.CreatedAt,
+			&template.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan notification template: %w", err)
+		}
+		
+		// Parse JSON fields
+		if len(variablesJSON) > 0 {
+			if err := json.Unmarshal(variablesJSON, &template.Variables); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal variables: %w", err)
+			}
+		}
+		
+		template.UserID = userID.String
+		template.OrgID = orgID.String
+		
+		templates = append(templates, &template)
+	}
+	
+	return templates, rows.Err()
+}
+
+func (s *PostgresStore) CreateNotificationTemplate(template *models.NotificationTemplate) error {
+	query := `
+		INSERT INTO notification_templates 
+		(id, name, type, channel, subject, body, variables, is_default, user_id, org_id, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+	`
+	
+	variablesJSON, err := json.Marshal(template.Variables)
+	if err != nil {
+		return fmt.Errorf("failed to marshal variables: %w", err)
+	}
+	
+	var userID, orgID *string
+	if template.UserID != "" {
+		userID = &template.UserID
+	}
+	if template.OrgID != "" {
+		orgID = &template.OrgID
+	}
+	
+	_, err = s.db.Exec(query,
+		template.ID,
+		template.Name,
+		template.Type,
+		template.Channel,
+		template.Subject,
+		template.Body,
+		variablesJSON,
+		template.IsDefault,
+		userID,
+		orgID,
+		template.CreatedAt,
+		template.UpdatedAt,
+	)
+	
+	if err != nil {
+		return fmt.Errorf("failed to create notification template: %w", err)
+	}
+	
+	return nil
+}
+
+func (s *PostgresStore) UpdateNotificationTemplate(template *models.NotificationTemplate) error {
+	query := `
+		UPDATE notification_templates
+		SET name = $2, type = $3, channel = $4, subject = $5, body = $6, 
+		    variables = $7, is_default = $8, user_id = $9, org_id = $10, updated_at = $11
+		WHERE id = $1
+	`
+	
+	variablesJSON, err := json.Marshal(template.Variables)
+	if err != nil {
+		return fmt.Errorf("failed to marshal variables: %w", err)
+	}
+	
+	var userID, orgID *string
+	if template.UserID != "" {
+		userID = &template.UserID
+	}
+	if template.OrgID != "" {
+		orgID = &template.OrgID
+	}
+	
+	result, err := s.db.Exec(query,
+		template.ID,
+		template.Name,
+		template.Type,
+		template.Channel,
+		template.Subject,
+		template.Body,
+		variablesJSON,
+		template.IsDefault,
+		userID,
+		orgID,
+		template.UpdatedAt,
+	)
+	
+	if err != nil {
+		return fmt.Errorf("failed to update notification template: %w", err)
+	}
+	
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+	
+	if rowsAffected == 0 {
+		return ErrNotFound
+	}
+	
+	return nil
+}
+
+func (s *PostgresStore) DeleteNotificationTemplate(id string) error {
+	query := `DELETE FROM notification_templates WHERE id = $1`
+	
+	result, err := s.db.Exec(query, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete notification template: %w", err)
+	}
+	
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+	
+	if rowsAffected == 0 {
+		return ErrNotFound
+	}
+	
+	return nil
+}
+
+// Notification History implementations
+func (s *PostgresStore) CreateNotificationHistory(history *models.NotificationHistory) error {
+	query := `
+		INSERT INTO notification_history 
+		(id, incident_id, channel_id, template_id, type, channel, recipient, subject, content, 
+		 status, error_msg, retry_count, scheduled_at, sent_at, delivered_at, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+	`
+	
+	_, err := s.db.Exec(query,
+		history.ID,
+		history.IncidentID,
+		history.ChannelID,
+		history.TemplateID,
+		history.Type,
+		history.Channel,
+		history.Recipient,
+		history.Subject,
+		history.Content,
+		history.Status,
+		history.ErrorMsg,
+		history.RetryCount,
+		history.ScheduledAt,
+		history.SentAt,
+		history.DeliveredAt,
+		history.CreatedAt,
+		history.UpdatedAt,
+	)
+	
+	if err != nil {
+		return fmt.Errorf("failed to create notification history: %w", err)
+	}
+	
+	return nil
+}
+
+func (s *PostgresStore) GetNotificationHistory(id string) (*models.NotificationHistory, error) {
+	query := `
+		SELECT id, incident_id, channel_id, template_id, type, channel, recipient, subject, content, 
+		       status, error_msg, retry_count, scheduled_at, sent_at, delivered_at, created_at, updated_at
+		FROM notification_history
+		WHERE id = $1
+	`
+	
+	var history models.NotificationHistory
+	var incidentID, channelID, templateID, errorMsg sql.NullString
+	var scheduledAt, sentAt, deliveredAt sql.NullTime
+	
+	err := s.db.QueryRow(query, id).Scan(
+		&history.ID,
+		&incidentID,
+		&channelID,
+		&templateID,
+		&history.Type,
+		&history.Channel,
+		&history.Recipient,
+		&history.Subject,
+		&history.Content,
+		&history.Status,
+		&errorMsg,
+		&history.RetryCount,
+		&scheduledAt,
+		&sentAt,
+		&deliveredAt,
+		&history.CreatedAt,
+		&history.UpdatedAt,
+	)
+	
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("failed to get notification history: %w", err)
+	}
+	
+	history.IncidentID = incidentID.String
+	history.ChannelID = channelID.String
+	history.TemplateID = templateID.String
+	history.ErrorMsg = errorMsg.String
+	
+	if scheduledAt.Valid {
+		history.ScheduledAt = &scheduledAt.Time
+	}
+	if sentAt.Valid {
+		history.SentAt = &sentAt.Time
+	}
+	if deliveredAt.Valid {
+		history.DeliveredAt = &deliveredAt.Time
+	}
+	
+	return &history, nil
+}
+
+func (s *PostgresStore) ListNotificationHistory(incidentID string) ([]*models.NotificationHistory, error) {
+	query := `
+		SELECT id, incident_id, channel_id, template_id, type, channel, recipient, subject, content, 
+		       status, error_msg, retry_count, scheduled_at, sent_at, delivered_at, created_at, updated_at
+		FROM notification_history
+		WHERE ($1 = '' OR incident_id = $1)
+		ORDER BY created_at DESC
+	`
+	
+	rows, err := s.db.Query(query, incidentID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list notification history: %w", err)
+	}
+	defer rows.Close()
+	
+	var histories []*models.NotificationHistory
+	for rows.Next() {
+		var history models.NotificationHistory
+		var incidentIDNull, channelID, templateID, errorMsg sql.NullString
+		var scheduledAt, sentAt, deliveredAt sql.NullTime
+		
+		err := rows.Scan(
+			&history.ID,
+			&incidentIDNull,
+			&channelID,
+			&templateID,
+			&history.Type,
+			&history.Channel,
+			&history.Recipient,
+			&history.Subject,
+			&history.Content,
+			&history.Status,
+			&errorMsg,
+			&history.RetryCount,
+			&scheduledAt,
+			&sentAt,
+			&deliveredAt,
+			&history.CreatedAt,
+			&history.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan notification history: %w", err)
+		}
+		
+		history.IncidentID = incidentIDNull.String
+		history.ChannelID = channelID.String
+		history.TemplateID = templateID.String
+		history.ErrorMsg = errorMsg.String
+		
+		if scheduledAt.Valid {
+			history.ScheduledAt = &scheduledAt.Time
+		}
+		if sentAt.Valid {
+			history.SentAt = &sentAt.Time
+		}
+		if deliveredAt.Valid {
+			history.DeliveredAt = &deliveredAt.Time
+		}
+		
+		histories = append(histories, &history)
+	}
+	
+	return histories, rows.Err()
+}
+
+func (s *PostgresStore) UpdateNotificationHistory(history *models.NotificationHistory) error {
+	query := `
+		UPDATE notification_history
+		SET incident_id = $2, channel_id = $3, template_id = $4, type = $5, channel = $6, 
+		    recipient = $7, subject = $8, content = $9, status = $10, error_msg = $11, 
+		    retry_count = $12, scheduled_at = $13, sent_at = $14, delivered_at = $15, updated_at = $16
+		WHERE id = $1
+	`
+	
+	result, err := s.db.Exec(query,
+		history.ID,
+		history.IncidentID,
+		history.ChannelID,
+		history.TemplateID,
+		history.Type,
+		history.Channel,
+		history.Recipient,
+		history.Subject,
+		history.Content,
+		history.Status,
+		history.ErrorMsg,
+		history.RetryCount,
+		history.ScheduledAt,
+		history.SentAt,
+		history.DeliveredAt,
+		history.UpdatedAt,
+	)
+	
+	if err != nil {
+		return fmt.Errorf("failed to update notification history: %w", err)
+	}
+	
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+	
+	if rowsAffected == 0 {
+		return ErrNotFound
+	}
+	
+	return nil
+}
+
+func (s *PostgresStore) DeleteNotificationHistory(id string) error {
+	query := `DELETE FROM notification_history WHERE id = $1`
+	
+	result, err := s.db.Exec(query, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete notification history: %w", err)
+	}
+	
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+	
+	if rowsAffected == 0 {
+		return ErrNotFound
+	}
+	
+	return nil
+}
+
+// Notification Batches implementations
+func (s *PostgresStore) CreateNotificationBatch(batch *models.NotificationBatch) error {
+	query := `
+		INSERT INTO notification_batches 
+		(id, channel_id, type, count, status, notifications, scheduled_at, processed_at, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+	`
+	
+	notificationsJSON, err := json.Marshal(batch.Notifications)
+	if err != nil {
+		return fmt.Errorf("failed to marshal notifications: %w", err)
+	}
+	
+	_, err = s.db.Exec(query,
+		batch.ID,
+		batch.ChannelID,
+		batch.Type,
+		batch.Count,
+		batch.Status,
+		notificationsJSON,
+		batch.ScheduledAt,
+		batch.ProcessedAt,
+		batch.CreatedAt,
+		batch.UpdatedAt,
+	)
+	
+	if err != nil {
+		return fmt.Errorf("failed to create notification batch: %w", err)
+	}
+	
+	return nil
+}
+
+func (s *PostgresStore) GetNotificationBatch(id string) (*models.NotificationBatch, error) {
+	query := `
+		SELECT id, channel_id, type, count, status, notifications, scheduled_at, processed_at, created_at, updated_at
+		FROM notification_batches
+		WHERE id = $1
+	`
+	
+	var batch models.NotificationBatch
+	var channelID sql.NullString
+	var notificationsJSON []byte
+	var scheduledAt, processedAt sql.NullTime
+	
+	err := s.db.QueryRow(query, id).Scan(
+		&batch.ID,
+		&channelID,
+		&batch.Type,
+		&batch.Count,
+		&batch.Status,
+		&notificationsJSON,
+		&scheduledAt,
+		&processedAt,
+		&batch.CreatedAt,
+		&batch.UpdatedAt,
+	)
+	
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("failed to get notification batch: %w", err)
+	}
+	
+	// Parse JSON fields
+	if len(notificationsJSON) > 0 {
+		if err := json.Unmarshal(notificationsJSON, &batch.Notifications); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal notifications: %w", err)
+		}
+	}
+	
+	batch.ChannelID = channelID.String
+	
+	if scheduledAt.Valid {
+		batch.ScheduledAt = &scheduledAt.Time
+	}
+	if processedAt.Valid {
+		batch.ProcessedAt = &processedAt.Time
+	}
+	
+	return &batch, nil
+}
+
+func (s *PostgresStore) ListNotificationBatches(channelID string) ([]*models.NotificationBatch, error) {
+	query := `
+		SELECT id, channel_id, type, count, status, notifications, scheduled_at, processed_at, created_at, updated_at
+		FROM notification_batches
+		WHERE ($1 = '' OR channel_id = $1)
+		ORDER BY created_at DESC
+	`
+	
+	rows, err := s.db.Query(query, channelID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list notification batches: %w", err)
+	}
+	defer rows.Close()
+	
+	var batches []*models.NotificationBatch
+	for rows.Next() {
+		var batch models.NotificationBatch
+		var channelIDNull sql.NullString
+		var notificationsJSON []byte
+		var scheduledAt, processedAt sql.NullTime
+		
+		err := rows.Scan(
+			&batch.ID,
+			&channelIDNull,
+			&batch.Type,
+			&batch.Count,
+			&batch.Status,
+			&notificationsJSON,
+			&scheduledAt,
+			&processedAt,
+			&batch.CreatedAt,
+			&batch.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan notification batch: %w", err)
+		}
+		
+		// Parse JSON fields
+		if len(notificationsJSON) > 0 {
+			if err := json.Unmarshal(notificationsJSON, &batch.Notifications); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal notifications: %w", err)
+			}
+		}
+		
+		batch.ChannelID = channelIDNull.String
+		
+		if scheduledAt.Valid {
+			batch.ScheduledAt = &scheduledAt.Time
+		}
+		if processedAt.Valid {
+			batch.ProcessedAt = &processedAt.Time
+		}
+		
+		batches = append(batches, &batch)
+	}
+	
+	return batches, rows.Err()
+}
+
+func (s *PostgresStore) UpdateNotificationBatch(batch *models.NotificationBatch) error {
+	query := `
+		UPDATE notification_batches
+		SET channel_id = $2, type = $3, count = $4, status = $5, notifications = $6, 
+		    scheduled_at = $7, processed_at = $8, updated_at = $9
+		WHERE id = $1
+	`
+	
+	notificationsJSON, err := json.Marshal(batch.Notifications)
+	if err != nil {
+		return fmt.Errorf("failed to marshal notifications: %w", err)
+	}
+	
+	result, err := s.db.Exec(query,
+		batch.ID,
+		batch.ChannelID,
+		batch.Type,
+		batch.Count,
+		batch.Status,
+		notificationsJSON,
+		batch.ScheduledAt,
+		batch.ProcessedAt,
+		batch.UpdatedAt,
+	)
+	
+	if err != nil {
+		return fmt.Errorf("failed to update notification batch: %w", err)
+	}
+	
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+	
+	if rowsAffected == 0 {
+		return ErrNotFound
+	}
+	
+	return nil
+}
+
+func (s *PostgresStore) DeleteNotificationBatch(id string) error {
+	query := `DELETE FROM notification_batches WHERE id = $1`
+	
+	result, err := s.db.Exec(query, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete notification batch: %w", err)
+	}
+	
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+	
+	if rowsAffected == 0 {
+		return ErrNotFound
+	}
+	
+	return nil
 }
